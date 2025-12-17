@@ -1,0 +1,2250 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Diorama — Campagne japonaise (3D)</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #05070d;
+        --panel: rgba(10, 14, 24, 0.72);
+        --panel2: rgba(10, 14, 24, 0.5);
+        --stroke: rgba(255, 255, 255, 0.12);
+        --text: rgba(255, 255, 255, 0.92);
+        --muted: rgba(255, 255, 255, 0.72);
+        --accent: rgba(255, 120, 80, 0.95);
+        --good: rgba(126, 231, 135, 0.95);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        background: radial-gradient(1200px 900px at 50% 10%, #0b1328 0%, var(--bg) 62%, #02030a 100%);
+        overflow: hidden;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
+          "Apple Color Emoji", "Segoe UI Emoji";
+        color: var(--text);
+      }
+
+      #stage {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+      }
+
+      canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      #gl {
+        z-index: 0;
+      }
+
+      #tiltshift {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 1;
+        display: none;
+        --tilt-blur: 14px;
+        --tilt-sat: 1.18;
+        --tilt-contrast: 1.06;
+        --tilt-alpha: 0.035;
+        --tilt-band: 44%;
+        --tilt-fade: 72%;
+      }
+
+      #tiltshift .tilt {
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: var(--tilt-band);
+        background: rgba(10, 14, 24, var(--tilt-alpha));
+        -webkit-backdrop-filter: blur(var(--tilt-blur)) saturate(var(--tilt-sat)) contrast(var(--tilt-contrast));
+        backdrop-filter: blur(var(--tilt-blur)) saturate(var(--tilt-sat)) contrast(var(--tilt-contrast));
+      }
+
+      #tiltshift .tilt-top {
+        top: 0;
+        -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0) var(--tilt-fade));
+        mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0) var(--tilt-fade));
+      }
+
+      #tiltshift .tilt-bottom {
+        bottom: 0;
+        -webkit-mask-image: linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0) var(--tilt-fade));
+        mask-image: linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0) var(--tilt-fade));
+      }
+
+      #tiltshift::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(120% 95% at 50% 50%, rgba(0, 0, 0, 0) 52%, rgba(0, 0, 0, 0.22) 100%);
+        mix-blend-mode: multiply;
+        opacity: 0.75;
+      }
+
+      #fx {
+        pointer-events: none;
+        mix-blend-mode: screen;
+        opacity: 0.9;
+        z-index: 2;
+      }
+
+      #bubbles {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 3;
+      }
+
+      .bubble {
+        --bubble-rgb: 255, 255, 255;
+        position: absolute;
+        max-width: min(260px, 56vw);
+        padding: 8px 10px;
+        border-radius: 12px;
+        background: linear-gradient(180deg, rgba(var(--bubble-rgb), 0.18), rgba(12, 16, 28, 0.74));
+        border: 1px solid rgba(var(--bubble-rgb), 0.38);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+        backdrop-filter: blur(6px);
+        transform: translate(-9999px, -9999px);
+        opacity: 0;
+        transition: opacity 120ms ease;
+        font-size: 13px;
+        line-height: 1.25;
+        white-space: pre-wrap;
+      }
+
+      .bubble[data-show="1"] {
+        opacity: 1;
+      }
+
+      .bubble::after {
+        content: "";
+        position: absolute;
+        left: 18px;
+        bottom: -7px;
+        width: 12px;
+        height: 12px;
+        transform: rotate(45deg);
+        background: linear-gradient(180deg, rgba(var(--bubble-rgb), 0.18), rgba(12, 16, 28, 0.74));
+        border-right: 1px solid rgba(var(--bubble-rgb), 0.38);
+        border-bottom: 1px solid rgba(var(--bubble-rgb), 0.38);
+      }
+
+      #hud {
+        position: fixed;
+        left: 14px;
+        top: 14px;
+        width: min(420px, calc(100vw - 28px));
+        background: var(--panel);
+        border: 1px solid var(--stroke);
+        border-radius: 14px;
+        padding: 12px 12px 10px;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+        z-index: 4;
+      }
+
+      #hud h1 {
+        font-size: 14px;
+        margin: 0 0 6px 0;
+        letter-spacing: 0.2px;
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 10px;
+      }
+
+      #hud h1 span {
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 500;
+        letter-spacing: 0.2px;
+      }
+
+      #hud .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 10px;
+      }
+
+      #hud label {
+        display: grid;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      #hud .control {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 10px;
+        border-radius: 12px;
+        background: var(--panel2);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      #hud select,
+      #hud input[type="range"],
+      #hud button {
+        width: 100%;
+      }
+
+      #hud select {
+        appearance: none;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(10, 14, 24, 0.7);
+        color: var(--text);
+        border-radius: 10px;
+        padding: 8px 10px;
+        outline: none;
+      }
+
+      #hud input[type="range"] {
+        accent-color: var(--accent);
+      }
+
+      #hud input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        accent-color: var(--accent);
+      }
+
+      #hud .toggle-text {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.82);
+        user-select: none;
+      }
+
+      #hud button {
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(10, 14, 24, 0.6);
+        color: var(--text);
+        border-radius: 12px;
+        padding: 9px 10px;
+        cursor: pointer;
+        transition: transform 80ms ease, border-color 120ms ease;
+      }
+
+      #hud button:active {
+        transform: translateY(1px);
+      }
+
+      #hud .hint {
+        margin-top: 10px;
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.68);
+        line-height: 1.35;
+      }
+
+      #hud code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+          monospace;
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.86);
+      }
+
+      #toast {
+        position: fixed;
+        right: 14px;
+        bottom: 14px;
+        width: min(420px, calc(100vw - 28px));
+        background: rgba(10, 14, 24, 0.7);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 14px;
+        padding: 10px 12px;
+        color: rgba(255, 255, 255, 0.84);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+        display: none;
+        z-index: 5;
+      }
+
+      #toast strong {
+        color: var(--text);
+        font-weight: 650;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="stage">
+      <canvas id="gl"></canvas>
+      <div id="tiltshift" aria-hidden="true">
+        <div class="tilt tilt-top"></div>
+        <div class="tilt tilt-bottom"></div>
+      </div>
+      <canvas id="fx"></canvas>
+    </div>
+
+    <div id="bubbles" aria-hidden="true"></div>
+
+    <div id="hud" role="group" aria-label="Contrôles du diorama">
+      <h1>
+        Diorama — campagne japonaise (3D)
+        <span id="status">…</span>
+      </h1>
+
+      <div class="row">
+        <label>
+          Vitesse du temps
+          <div class="control">
+            <input id="timeSpeed" type="range" min="0" max="4" step="0.01" value="1.25" />
+          </div>
+        </label>
+
+        <label>
+          Météo
+          <div class="control">
+            <select id="weather">
+              <option value="auto" selected>Auto</option>
+              <option value="clear">Clair</option>
+              <option value="rain">Pluie</option>
+              <option value="fog">Brouillard</option>
+              <option value="snow">Neige</option>
+            </select>
+          </div>
+        </label>
+      </div>
+
+      <div class="row">
+        <label>
+          Animaux
+          <div class="control">
+            <select id="density">
+              <option value="6">6</option>
+              <option value="8" selected>8</option>
+              <option value="10">10</option>
+              <option value="12">12</option>
+            </select>
+          </div>
+        </label>
+
+        <label>
+          Action
+          <div class="control">
+            <button id="reset" type="button">Relancer la scène</button>
+          </div>
+        </label>
+      </div>
+
+      <div class="row">
+        <label>
+          Tilt-shift
+          <div class="control">
+            <input id="tiltShift" type="checkbox" />
+            <span class="toggle-text">Activer</span>
+          </div>
+        </label>
+
+        <label>
+          Intensité
+          <div class="control">
+            <input id="tiltStrength" type="range" min="0" max="1" step="0.01" value="0.55" />
+          </div>
+        </label>
+      </div>
+
+      <div class="hint">
+        Souris/tactile : glisser pour tourner, molette pour zoomer. Double‑clic sur un animal : vue 1ère personne.
+        Les bulles apparaissent lors des interactions et des actions (dormir, observer, etc.).
+        <br />
+        Astuce : passez en météo <code>Pluie</code> la nuit pour voir plus d’animaux se reposer.
+      </div>
+    </div>
+
+    <div id="toast" role="status" aria-live="polite"></div>
+
+    <script>
+      (() => {
+        const el = {
+          gl: document.getElementById("gl"),
+          tiltshift: document.getElementById("tiltshift"),
+          fx: document.getElementById("fx"),
+          bubbles: document.getElementById("bubbles"),
+          status: document.getElementById("status"),
+          timeSpeed: document.getElementById("timeSpeed"),
+          weather: document.getElementById("weather"),
+          density: document.getElementById("density"),
+          tiltShift: document.getElementById("tiltShift"),
+          tiltStrength: document.getElementById("tiltStrength"),
+          reset: document.getElementById("reset"),
+          toast: document.getElementById("toast"),
+        };
+
+        const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+        const lerp = (a, b, t) => a + (b - a) * t;
+        const smoothstep = (edge0, edge1, x) => {
+          const t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
+          return t * t * (3 - 2 * t);
+        };
+
+        const nowSeconds = () => performance.now() / 1000;
+
+        const v3 = {
+          add: (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]],
+          sub: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]],
+          scale: (a, s) => [a[0] * s, a[1] * s, a[2] * s],
+          dot: (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2],
+          cross: (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]],
+          len: (a) => Math.hypot(a[0], a[1], a[2]),
+          norm: (a) => {
+            const l = Math.hypot(a[0], a[1], a[2]) || 1;
+            return [a[0] / l, a[1] / l, a[2] / l];
+          },
+          distXZ: (a, b) => Math.hypot(a[0] - b[0], a[2] - b[2]),
+        };
+
+        const m4 = {
+          identity: () => {
+            const out = new Float32Array(16);
+            out[0] = 1;
+            out[5] = 1;
+            out[10] = 1;
+            out[15] = 1;
+            return out;
+          },
+          multiply: (a, b) => {
+            const out = new Float32Array(16);
+            const a00 = a[0],
+              a01 = a[4],
+              a02 = a[8],
+              a03 = a[12];
+            const a10 = a[1],
+              a11 = a[5],
+              a12 = a[9],
+              a13 = a[13];
+            const a20 = a[2],
+              a21 = a[6],
+              a22 = a[10],
+              a23 = a[14];
+            const a30 = a[3],
+              a31 = a[7],
+              a32 = a[11],
+              a33 = a[15];
+
+            const b00 = b[0],
+              b01 = b[4],
+              b02 = b[8],
+              b03 = b[12];
+            const b10 = b[1],
+              b11 = b[5],
+              b12 = b[9],
+              b13 = b[13];
+            const b20 = b[2],
+              b21 = b[6],
+              b22 = b[10],
+              b23 = b[14];
+            const b30 = b[3],
+              b31 = b[7],
+              b32 = b[11],
+              b33 = b[15];
+
+            out[0] = a00 * b00 + a01 * b10 + a02 * b20 + a03 * b30;
+            out[1] = a10 * b00 + a11 * b10 + a12 * b20 + a13 * b30;
+            out[2] = a20 * b00 + a21 * b10 + a22 * b20 + a23 * b30;
+            out[3] = a30 * b00 + a31 * b10 + a32 * b20 + a33 * b30;
+            out[4] = a00 * b01 + a01 * b11 + a02 * b21 + a03 * b31;
+            out[5] = a10 * b01 + a11 * b11 + a12 * b21 + a13 * b31;
+            out[6] = a20 * b01 + a21 * b11 + a22 * b21 + a23 * b31;
+            out[7] = a30 * b01 + a31 * b11 + a32 * b21 + a33 * b31;
+            out[8] = a00 * b02 + a01 * b12 + a02 * b22 + a03 * b32;
+            out[9] = a10 * b02 + a11 * b12 + a12 * b22 + a13 * b32;
+            out[10] = a20 * b02 + a21 * b12 + a22 * b22 + a23 * b32;
+            out[11] = a30 * b02 + a31 * b12 + a32 * b22 + a33 * b32;
+            out[12] = a00 * b03 + a01 * b13 + a02 * b23 + a03 * b33;
+            out[13] = a10 * b03 + a11 * b13 + a12 * b23 + a13 * b33;
+            out[14] = a20 * b03 + a21 * b13 + a22 * b23 + a23 * b33;
+            out[15] = a30 * b03 + a31 * b13 + a32 * b23 + a33 * b33;
+            return out;
+          },
+          perspective: (fovy, aspect, near, far) => {
+            const out = new Float32Array(16);
+            const f = 1 / Math.tan(fovy / 2);
+            out[0] = f / aspect;
+            out[5] = f;
+            out[10] = (far + near) / (near - far);
+            out[11] = -1;
+            out[14] = (2 * far * near) / (near - far);
+            return out;
+          },
+          lookAt: (eye, target, up) => {
+            const zAxis = v3.norm(v3.sub(eye, target));
+            const xAxis = v3.norm(v3.cross(up, zAxis));
+            const yAxis = v3.cross(zAxis, xAxis);
+
+            const out = new Float32Array(16);
+            out[0] = xAxis[0];
+            out[1] = yAxis[0];
+            out[2] = zAxis[0];
+            out[3] = 0;
+            out[4] = xAxis[1];
+            out[5] = yAxis[1];
+            out[6] = zAxis[1];
+            out[7] = 0;
+            out[8] = xAxis[2];
+            out[9] = yAxis[2];
+            out[10] = zAxis[2];
+            out[11] = 0;
+            out[12] = -v3.dot(xAxis, eye);
+            out[13] = -v3.dot(yAxis, eye);
+            out[14] = -v3.dot(zAxis, eye);
+            out[15] = 1;
+            return out;
+          },
+          trsY: (pos, yaw, scale) => {
+            const c = Math.cos(yaw);
+            const s = Math.sin(yaw);
+            const sx = scale[0],
+              sy = scale[1],
+              sz = scale[2];
+            const out = new Float32Array(16);
+            out[0] = c * sx;
+            out[1] = 0;
+            out[2] = -s * sx;
+            out[3] = 0;
+            out[4] = 0;
+            out[5] = sy;
+            out[6] = 0;
+            out[7] = 0;
+            out[8] = s * sz;
+            out[9] = 0;
+            out[10] = c * sz;
+            out[11] = 0;
+            out[12] = pos[0];
+            out[13] = pos[1];
+            out[14] = pos[2];
+            out[15] = 1;
+            return out;
+          },
+          transformVec4: (m, x, y, z, w) => {
+            return [
+              m[0] * x + m[4] * y + m[8] * z + m[12] * w,
+              m[1] * x + m[5] * y + m[9] * z + m[13] * w,
+              m[2] * x + m[6] * y + m[10] * z + m[14] * w,
+              m[3] * x + m[7] * y + m[11] * z + m[15] * w,
+            ];
+          },
+        };
+
+        const toast = (html, ms = 2200) => {
+          el.toast.innerHTML = html;
+          el.toast.style.display = "block";
+          clearTimeout(toast._t);
+          toast._t = setTimeout(() => {
+            el.toast.style.display = "none";
+          }, ms);
+        };
+
+        const tiltShift = (() => {
+          const state = { enabled: false, strength: -1 };
+
+          const apply = () => {
+            const enabled = Boolean(el.tiltShift?.checked);
+            const strength = Number(el.tiltStrength?.value ?? 0);
+
+            if (enabled !== state.enabled) {
+              el.tiltshift.style.display = enabled ? "block" : "none";
+              if (el.tiltStrength) el.tiltStrength.disabled = !enabled;
+              state.enabled = enabled;
+            }
+
+            if (Math.abs(strength - state.strength) > 1e-6) {
+              const blur = lerp(8, 32, strength);
+              const sat = lerp(1.05, 1.32, strength);
+              const contrast = lerp(1.02, 1.12, strength);
+              const alpha = lerp(0.02, 0.075, strength);
+              const band = lerp(38, 50, strength);
+              const fade = lerp(64, 78, strength);
+              el.tiltshift.style.setProperty("--tilt-blur", `${blur.toFixed(2)}px`);
+              el.tiltshift.style.setProperty("--tilt-sat", sat.toFixed(3));
+              el.tiltshift.style.setProperty("--tilt-contrast", contrast.toFixed(3));
+              el.tiltshift.style.setProperty("--tilt-alpha", alpha.toFixed(3));
+              el.tiltshift.style.setProperty("--tilt-band", `${band.toFixed(1)}%`);
+              el.tiltshift.style.setProperty("--tilt-fade", `${fade.toFixed(1)}%`);
+              state.strength = strength;
+            }
+          };
+
+          if (el.tiltShift) el.tiltShift.addEventListener("change", apply);
+          if (el.tiltStrength) el.tiltStrength.addEventListener("input", apply);
+          apply();
+          return { apply };
+        })();
+
+        const makeRng = (seed) => {
+          let s = seed >>> 0;
+          return () => {
+            s ^= s << 13;
+            s ^= s >>> 17;
+            s ^= s << 5;
+            return ((s >>> 0) % 1_000_000) / 1_000_000;
+          };
+        };
+
+        const hash2 = (x, z) => {
+          let h = x * 374761393 + z * 668265263;
+          h = (h ^ (h >>> 13)) * 1274126177;
+          return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
+        };
+
+	        const valueNoise2 = (x, z) => {
+	          const xi = Math.floor(x);
+	          const zi = Math.floor(z);
+          const xf = x - xi;
+          const zf = z - zi;
+
+          const h00 = hash2(xi, zi);
+          const h10 = hash2(xi + 1, zi);
+          const h01 = hash2(xi, zi + 1);
+          const h11 = hash2(xi + 1, zi + 1);
+
+          const u = xf * xf * (3 - 2 * xf);
+          const v = zf * zf * (3 - 2 * zf);
+
+	          const a = lerp(h00, h10, u);
+	          const b = lerp(h01, h11, u);
+	          return lerp(a, b, v) * 2 - 1;
+	        };
+
+	        const worldScale = 6;
+
+	        const terrain = (() => {
+	          const radius = 22 * worldScale;
+	          const worldSize = 46 * worldScale;
+	          const meshSteps = Math.min(254, Math.round(worldSize / 1.1));
+	          const paddyBounds = 11.6 * worldScale;
+
+	          const paddyInfo = (x, z) => {
+	            if (Math.abs(x) > paddyBounds || Math.abs(z) > paddyBounds) return null;
+	            const cell = 3.2;
+	            const bx = x + paddyBounds;
+	            const bz = z + paddyBounds;
+	            const cx = Math.floor(bx / cell);
+	            const cz = Math.floor(bz / cell);
+	            const lx = bx - cx * cell;
+	            const lz = bz - cz * cell;
+	            const border = 0.38;
+	            const isRidge = lx < border || lx > cell - border || lz < border || lz > cell - border;
+	            return { isRidge, isWater: !isRidge, id: cx + cz * 2048 };
+	          };
+
+	          const isPath = (x, z) => {
+	            if (Math.abs(x) > paddyBounds + 44 || Math.abs(z) > paddyBounds + 44) return false;
+	            const mainZ = -6 + Math.sin(x * 0.015) * 11 + Math.sin(x * 0.045) * 2.2;
+	            const crossX = 12 + Math.sin(z * 0.02) * 4.8 + Math.sin(z * 0.06) * 1.2;
+	            const laneA = Math.abs(z - mainZ) < 1.15;
+	            const laneB = Math.abs(x - crossX) < 0.95;
+	            return laneA || laneB;
+	          };
+
+	          const riverCenterX = (z) => {
+	            const baseX = -radius * 0.38;
+	            const meander = Math.sin(z * 0.035) * 14 + Math.sin(z * 0.011 + 2.4) * 8;
+	            return baseX + meander;
+	          };
+
+	          const riverDistance = (x, z) => Math.abs(x - riverCenterX(z));
+
+	          const river = (x, z) => {
+	            const wobble = valueNoise2(x * 0.06 + 4, z * 0.06 - 11) * 0.5 + 0.5;
+	            const width = 3.2 + wobble * 1.1;
+	            return riverDistance(x, z) < width;
+	          };
+
+	          const stream = (x, z) => {
+	            const cx = -8 + Math.sin(z * 0.06) * 2.2;
+	            return Math.abs(x - cx) < 1.15;
+	          };
+
+          const height = (x, z) => {
+            const d = Math.hypot(x, z);
+            const falloff = 1 - smoothstep(radius - 2.6, radius + 0.8, d);
+
+            const h1 = valueNoise2(x * 0.12, z * 0.12) * 1.65;
+            const h2 = valueNoise2(x * 0.32 + 10, z * 0.32 - 7) * 0.45;
+            let h = (h1 + h2) * falloff + 0.12;
+
+            const pad = paddyInfo(x, z);
+            if (pad && falloff > 0.05) {
+              if (pad.isWater) h = lerp(h, -0.35, 0.92);
+              if (pad.isRidge) h += 0.18;
+            }
+
+            if (isPath(x, z) && falloff > 0.1) h = lerp(h, 0.02, 0.82);
+	            if (stream(x, z) && falloff > 0.08) h = lerp(h, -0.42, 0.92);
+	            if (river(x, z) && falloff > 0.08) h = lerp(h, -0.62, 0.94);
+
+            h = lerp(-2.4, h, falloff);
+            return h;
+          };
+
+          const surface = (x, z) => {
+            const pad = paddyInfo(x, z);
+            if (pad && pad.isWater) return "water";
+	            if (river(x, z) || stream(x, z)) return "river";
+            if (isPath(x, z)) return "path";
+            return "land";
+          };
+
+	          const color = (x, z, h) => {
+	            const d = Math.hypot(x, z);
+	            const falloff = 1 - smoothstep(radius - 2.6, radius + 0.8, d);
+	            const s = surface(x, z);
+	            const n = valueNoise2(x * 0.45 + 30, z * 0.45 - 4) * 0.5 + 0.5;
+	            const n2 = valueNoise2(x * 0.12 - 12, z * 0.12 + 18) * 0.5 + 0.5;
+
+	            if (falloff < 0.06) return [0.22, 0.16, 0.1];
+
+	            if (s === "water" || s === "river") {
+	              const shallow = s === "river" ? [0.1, 0.42, 0.78] : [0.12, 0.5, 0.64];
+	              const deep = s === "river" ? [0.03, 0.21, 0.52] : [0.06, 0.28, 0.44];
+	              const t = s === "river" ? 0.74 : 0.56;
+	              const v = 0.82 + n * 0.28;
+	              return [
+	                lerp(deep[0], shallow[0], t) * v,
+	                lerp(deep[1], shallow[1], t) * v,
+	                lerp(deep[2], shallow[2], t) * v,
+	              ];
+	            }
+
+	            if (s === "path") {
+	              const v = 0.86 + n2 * 0.28;
+	              return [0.62 * v, 0.46 * v, 0.28 * v];
+	            }
+
+	            const isRock = h > 1.25;
+	            const base = isRock ? [0.52, 0.5, 0.56] : [0.1, 0.62, 0.2];
+	            const v = 0.74 + n * 0.36;
+	            let col = [base[0] * v, base[1] * v, base[2] * v];
+
+	            if (!isRock) {
+	              const near =
+	                surface(x + 0.9, z) === "water" ||
+	                surface(x - 0.9, z) === "water" ||
+	                surface(x, z + 0.9) === "water" ||
+	                surface(x, z - 0.9) === "water" ||
+	                surface(x + 0.9, z) === "river" ||
+	                surface(x - 0.9, z) === "river" ||
+	                surface(x, z + 0.9) === "river" ||
+	                surface(x, z - 0.9) === "river";
+	              if (near) {
+	                col = [col[0] + 0.06, col[1] + 0.09, col[2] + 0.06];
+	              }
+	            }
+
+	            return col;
+	          };
+
+	          return { radius, worldSize, meshSteps, paddyBounds, riverCenterX, riverDistance, isPath, height, color, surface };
+	        })();
+
+        const gl = el.gl.getContext("webgl", { antialias: true, alpha: false, depth: true, powerPreference: "high-performance" });
+        if (!gl) {
+          toast("<strong>WebGL indisponible.</strong> Essayez un autre navigateur.", 10_000);
+          return;
+        }
+
+        const shader = (type, src) => {
+          const s = gl.createShader(type);
+          gl.shaderSource(s, src);
+          gl.compileShader(s);
+          if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+            const info = gl.getShaderInfoLog(s) || "Erreur shader.";
+            gl.deleteShader(s);
+            throw new Error(info);
+          }
+          return s;
+        };
+
+        const program = (vs, fs) => {
+          const p = gl.createProgram();
+          gl.attachShader(p, shader(gl.VERTEX_SHADER, vs));
+          gl.attachShader(p, shader(gl.FRAGMENT_SHADER, fs));
+          gl.linkProgram(p);
+          if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+            const info = gl.getProgramInfoLog(p) || "Erreur link.";
+            gl.deleteProgram(p);
+            throw new Error(info);
+          }
+          return p;
+        };
+
+	        const VS = `
+	          attribute vec3 a_position;
+	          attribute vec3 a_normal;
+	          attribute vec3 a_color;
+	          attribute float a_mat;
+
+          uniform mat4 u_model;
+          uniform mat4 u_view;
+          uniform mat4 u_proj;
+
+	          varying vec3 v_color;
+	          varying vec3 v_normal;
+	          varying vec3 v_worldPos;
+	          varying float v_mat;
+
+	          void main() {
+	            vec4 world = u_model * vec4(a_position, 1.0);
+	            v_worldPos = world.xyz;
+	            v_normal = mat3(u_model) * a_normal;
+	            v_color = a_color;
+	            v_mat = a_mat;
+	            gl_Position = u_proj * u_view * world;
+	          }
+	        `;
+
+	        const FS = `
+	          precision mediump float;
+
+	          varying vec3 v_color;
+	          varying vec3 v_normal;
+	          varying vec3 v_worldPos;
+	          varying float v_mat;
+
+	          uniform vec3 u_cameraPos;
+	          uniform vec3 u_lightDir;
+	          uniform vec3 u_lightColor;
+	          uniform float u_ambient;
+	          uniform vec3 u_tint;
+	          uniform float u_time;
+
+	          uniform vec3 u_fogColor;
+	          uniform float u_fogDensity;
+
+	          void main() {
+	            vec3 n = normalize(v_normal);
+	            vec3 l = normalize(u_lightDir);
+	            vec3 viewDir = normalize(u_cameraPos - v_worldPos);
+	            float diff = max(dot(n, l), 0.0);
+	            float fres = pow(1.0 - max(dot(n, viewDir), 0.0), 3.0);
+	            vec3 base = v_color * u_tint;
+	            vec3 shaded = base * (u_ambient + diff * u_lightColor);
+	            shaded += (0.06 + 0.14 * diff) * fres * u_lightColor;
+
+	            float waterMask = step(0.25, v_mat);
+	            if (waterMask > 0.5) {
+	              float riverMask = step(0.9, v_mat);
+	              vec2 p = v_worldPos.xz;
+	              float t = u_time;
+	              float flow = mix(0.12, 0.55, riverMask);
+	              vec2 pf = p + vec2(0.0, t * (3.0 + 7.0 * riverMask) * flow);
+
+	              float a1 = 0.55;
+	              float a2 = 0.35;
+	              float a3 = 0.22;
+	              float p1 = dot(pf, vec2(0.07, 0.12)) + t * (1.0 + flow);
+	              float p2 = dot(pf, vec2(-0.11, 0.05)) + t * (0.82 + flow * 0.7);
+	              float p3 = dot(pf, vec2(0.15, -0.04)) + t * (1.38 + flow * 0.8);
+	              float wave = sin(p1) * a1 + sin(p2) * a2 + sin(p3) * a3;
+
+	              float amp = mix(0.16, 0.35, riverMask);
+	              float dhdx = cos(p1) * a1 * 0.07 + cos(p2) * a2 * (-0.11) + cos(p3) * a3 * 0.15;
+	              float dhdz = cos(p1) * a1 * 0.12 + cos(p2) * a2 * (0.05) + cos(p3) * a3 * (-0.04);
+	              vec3 wn = normalize(vec3(-dhdx * amp, 1.0, -dhdz * amp));
+	              n = normalize(mix(n, wn, 0.92));
+
+	              diff = max(dot(n, l), 0.0);
+	              float fresW = pow(1.0 - max(dot(n, viewDir), 0.0), 5.0);
+
+	              vec3 waterBase = mix(base, vec3(0.05, 0.38, 0.62), 0.62);
+	              waterBase += (0.02 + 0.02 * riverMask) * wave * vec3(0.55, 0.8, 1.0);
+	              float depthish = clamp((-v_worldPos.y - 0.06) * 0.18, 0.0, 1.0);
+	              waterBase = mix(waterBase, waterBase * vec3(0.66, 0.74, 0.84), depthish);
+
+	              vec3 waterLit = waterBase * (u_ambient + diff * u_lightColor);
+	              vec3 h = normalize(l + viewDir);
+	              float specPow = mix(52.0, 92.0, riverMask);
+	              float spec = pow(max(dot(n, h), 0.0), specPow);
+	              spec *= (0.35 + 0.75 * fresW) * (0.75 + 0.65 * riverMask);
+
+	              vec3 refl = mix(waterBase, u_fogColor * vec3(1.05, 1.08, 1.12), 0.7);
+	              waterLit = mix(waterLit, refl, fresW * 0.8);
+	              waterLit += spec * vec3(1.0);
+
+	              float cau = sin(p1 * 1.3 + t * 0.7) * sin(p2 * 1.1 + t * 0.9);
+	              waterLit += (0.015 + 0.03 * diff) * cau * vec3(0.45, 0.62, 0.82);
+	              shaded = waterLit;
+	            }
+
+	            float dist = distance(u_cameraPos, v_worldPos);
+	            float fog = clamp(exp(-u_fogDensity * dist), 0.0, 1.0);
+	            vec3 col = mix(u_fogColor, shaded, fog);
+	            col *= 1.65;
+	            col = col / (col + vec3(1.0));
+	            float luma = dot(col, vec3(0.2126, 0.7152, 0.0722));
+	            col = mix(vec3(luma), col, 1.28);
+	            col = (col - 0.5) * 1.07 + 0.5;
+	            col = pow(clamp(col, 0.0, 1.0), vec3(0.4545));
+	            gl_FragColor = vec4(col, 1.0);
+	          }
+	        `;
+
+        let prog;
+        try {
+          prog = program(VS, FS);
+        } catch (e) {
+          toast(`<strong>Erreur WebGL</strong><br /><code>${String(e).replaceAll("<", "&lt;")}</code>`, 10_000);
+          throw e;
+        }
+
+	        const loc = {
+	          a_position: gl.getAttribLocation(prog, "a_position"),
+	          a_normal: gl.getAttribLocation(prog, "a_normal"),
+	          a_color: gl.getAttribLocation(prog, "a_color"),
+	          a_mat: gl.getAttribLocation(prog, "a_mat"),
+	          u_model: gl.getUniformLocation(prog, "u_model"),
+	          u_view: gl.getUniformLocation(prog, "u_view"),
+	          u_proj: gl.getUniformLocation(prog, "u_proj"),
+	          u_cameraPos: gl.getUniformLocation(prog, "u_cameraPos"),
+	          u_lightDir: gl.getUniformLocation(prog, "u_lightDir"),
+	          u_lightColor: gl.getUniformLocation(prog, "u_lightColor"),
+	          u_ambient: gl.getUniformLocation(prog, "u_ambient"),
+	          u_tint: gl.getUniformLocation(prog, "u_tint"),
+	          u_time: gl.getUniformLocation(prog, "u_time"),
+	          u_fogColor: gl.getUniformLocation(prog, "u_fogColor"),
+	          u_fogDensity: gl.getUniformLocation(prog, "u_fogDensity"),
+	        };
+
+        const makeBuffer = (target, data, usage = gl.STATIC_DRAW) => {
+          const b = gl.createBuffer();
+          gl.bindBuffer(target, b);
+          gl.bufferData(target, data, usage);
+          return b;
+        };
+
+        const cube = (() => {
+          const p = [];
+          const n = [];
+          const c = [];
+          const pushFace = (a, b, c1, d, normal) => {
+            const col = [1, 1, 1];
+            p.push(...a, ...b, ...c1, ...a, ...c1, ...d);
+            n.push(...normal, ...normal, ...normal, ...normal, ...normal, ...normal);
+            for (let i = 0; i < 6; i++) c.push(...col);
+          };
+
+          const A = [-0.5, -0.5, 0.5],
+            B = [0.5, -0.5, 0.5],
+            C = [0.5, 0.5, 0.5],
+            D = [-0.5, 0.5, 0.5];
+          const E = [-0.5, -0.5, -0.5],
+            F = [0.5, -0.5, -0.5],
+            G = [0.5, 0.5, -0.5],
+            H = [-0.5, 0.5, -0.5];
+
+          pushFace(A, B, C, D, [0, 0, 1]);
+          pushFace(F, E, H, G, [0, 0, -1]);
+          pushFace(E, A, D, H, [-1, 0, 0]);
+          pushFace(B, F, G, C, [1, 0, 0]);
+          pushFace(D, C, G, H, [0, 1, 0]);
+          pushFace(E, F, B, A, [0, -1, 0]);
+
+	          const positions = new Float32Array(p);
+	          const normals = new Float32Array(n);
+	          const colors = new Float32Array(c);
+	          const mats = new Float32Array(36);
+	          return {
+	            vertexCount: 36,
+	            positionBuffer: makeBuffer(gl.ARRAY_BUFFER, positions),
+	            normalBuffer: makeBuffer(gl.ARRAY_BUFFER, normals),
+	            colorBuffer: makeBuffer(gl.ARRAY_BUFFER, colors),
+	            matBuffer: makeBuffer(gl.ARRAY_BUFFER, mats),
+	          };
+	        })();
+
+	        const terrainMesh = (() => {
+	          const size = terrain.worldSize;
+	          const steps = terrain.meshSteps;
+		          const half = size / 2;
+		          const positions = [];
+		          const normals = [];
+		          const colors = [];
+	          const mats = [];
+	          const indices = [];
+	          const spacing = size / steps;
+
+          const heights = Array.from({ length: steps + 1 }, () => new Float32Array(steps + 1));
+          for (let z = 0; z <= steps; z++) {
+            for (let x = 0; x <= steps; x++) {
+              const wx = -half + x * spacing;
+              const wz = -half + z * spacing;
+              heights[z][x] = terrain.height(wx, wz);
+            }
+          }
+
+          const getH = (x, z) => heights[clamp(z, 0, steps)][clamp(x, 0, steps)];
+
+          for (let z = 0; z <= steps; z++) {
+            for (let x = 0; x <= steps; x++) {
+              const wx = -half + x * spacing;
+              const wz = -half + z * spacing;
+              const h = heights[z][x];
+
+              const hl = getH(x - 1, z);
+              const hr = getH(x + 1, z);
+              const hd = getH(x, z - 1);
+              const hu = getH(x, z + 1);
+              const nx = hl - hr;
+              const ny = spacing * 2;
+              const nz = hd - hu;
+	              const nn = v3.norm([nx, ny, nz]);
+
+	              const s = terrain.surface(wx, wz);
+	              const mat = s === "river" ? 1 : s === "water" ? 0.55 : 0;
+	              const col = terrain.color(wx, wz, h);
+	              positions.push(wx, h, wz);
+	              normals.push(nn[0], nn[1], nn[2]);
+	              colors.push(col[0], col[1], col[2]);
+	              mats.push(mat);
+	            }
+	          }
+
+          for (let z = 0; z < steps; z++) {
+            for (let x = 0; x < steps; x++) {
+              const i = z * (steps + 1) + x;
+              const a = i;
+              const b = i + 1;
+              const c1 = i + (steps + 1);
+              const d = i + (steps + 1) + 1;
+              indices.push(a, c1, b, b, c1, d);
+            }
+          }
+
+	          return {
+	            indexCount: indices.length,
+	            positionBuffer: makeBuffer(gl.ARRAY_BUFFER, new Float32Array(positions)),
+	            normalBuffer: makeBuffer(gl.ARRAY_BUFFER, new Float32Array(normals)),
+	            colorBuffer: makeBuffer(gl.ARRAY_BUFFER, new Float32Array(colors)),
+	            matBuffer: makeBuffer(gl.ARRAY_BUFFER, new Float32Array(mats)),
+	            indexBuffer: makeBuffer(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices)),
+	          };
+	        })();
+
+        const fx = (() => {
+          const ctx = el.fx.getContext("2d");
+          const rain = [];
+          const snow = [];
+          const stars = [];
+
+          const resetStars = (w, h) => {
+            stars.length = 0;
+            const count = Math.floor((w * h) / 18_000);
+            for (let i = 0; i < count; i++) {
+              stars.push({
+                x: Math.random() * w,
+                y: Math.random() * (h * 0.6),
+                r: Math.random() * 1.4 + 0.3,
+                a: Math.random() * 0.5 + 0.15,
+              });
+            }
+          };
+
+          const ensure = (list, count, make) => {
+            while (list.length < count) list.push(make());
+            if (list.length > count) list.length = count;
+          };
+
+          const update = (dt, w, h, weatherIntensity, nightFactor, wind) => {
+            if (nightFactor > 0.55 && stars.length === 0) resetStars(w, h);
+            if (nightFactor < 0.35 && stars.length > 0) stars.length = 0;
+
+            const rainCount = Math.floor(weatherIntensity.rain * (w * h) / 18_000);
+            const snowCount = Math.floor(weatherIntensity.snow * (w * h) / 30_000);
+            ensure(rain, rainCount, () => ({
+              x: Math.random() * w,
+              y: Math.random() * h,
+              vy: 900 + Math.random() * 420,
+              len: 12 + Math.random() * 18,
+              a: 0.2 + Math.random() * 0.2,
+            }));
+            ensure(snow, snowCount, () => ({
+              x: Math.random() * w,
+              y: Math.random() * h,
+              vy: 60 + Math.random() * 70,
+              vx: (Math.random() - 0.5) * 22,
+              r: 1 + Math.random() * 2.2,
+              a: 0.15 + Math.random() * 0.25,
+            }));
+
+            for (const d of rain) {
+              d.x += wind * dt * 240;
+              d.y += d.vy * dt;
+              if (d.y > h + 40) {
+                d.y = -40;
+                d.x = Math.random() * w;
+              }
+              if (d.x < -40) d.x += w + 80;
+              if (d.x > w + 40) d.x -= w + 80;
+            }
+
+            for (const f of snow) {
+              f.x += (f.vx + wind * 18) * dt;
+              f.y += f.vy * dt;
+              if (f.y > h + 20) {
+                f.y = -20;
+                f.x = Math.random() * w;
+              }
+              if (f.x < -30) f.x += w + 60;
+              if (f.x > w + 30) f.x -= w + 60;
+            }
+          };
+
+          const draw = (w, h, weatherIntensity, nightFactor) => {
+            ctx.clearRect(0, 0, w, h);
+
+            if (stars.length && nightFactor > 0.5) {
+              ctx.save();
+              const a = clamp((nightFactor - 0.5) / 0.5, 0, 1);
+              ctx.globalAlpha = 0.75 * a;
+              ctx.fillStyle = "rgba(220,240,255,0.9)";
+              for (const s of stars) {
+                ctx.globalAlpha = s.a * a;
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+                ctx.fill();
+              }
+              ctx.restore();
+            }
+
+            if (weatherIntensity.rain > 0.01) {
+              ctx.save();
+              ctx.globalCompositeOperation = "lighter";
+              ctx.strokeStyle = "rgba(170, 210, 255, 0.55)";
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              for (const d of rain) {
+                ctx.globalAlpha = d.a * weatherIntensity.rain;
+                ctx.moveTo(d.x, d.y);
+                ctx.lineTo(d.x - 10, d.y + d.len);
+              }
+              ctx.stroke();
+              ctx.restore();
+            }
+
+            if (weatherIntensity.snow > 0.01) {
+              ctx.save();
+              ctx.globalCompositeOperation = "lighter";
+              ctx.fillStyle = "rgba(240, 250, 255, 0.9)";
+              for (const f of snow) {
+                ctx.globalAlpha = f.a * weatherIntensity.snow;
+                ctx.beginPath();
+                ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+                ctx.fill();
+              }
+              ctx.restore();
+            }
+
+            const fog = weatherIntensity.fog;
+            if (fog > 0.01) {
+              ctx.save();
+              const g = ctx.createRadialGradient(w * 0.5, h * 0.4, Math.min(w, h) * 0.12, w * 0.5, h * 0.6, Math.max(w, h) * 0.62);
+              g.addColorStop(0, `rgba(220,235,255,${0.06 * fog})`);
+              g.addColorStop(1, `rgba(160,190,240,${0.22 * fog})`);
+              ctx.fillStyle = g;
+              ctx.fillRect(0, 0, w, h);
+              ctx.restore();
+            }
+          };
+
+          return { update, draw };
+        })();
+
+	        const camera = {
+	          target: [0, 0.4, 0],
+	          yaw: 0.8,
+	          pitch: 0.52,
+	          distance: 58,
+	          minDistance: 18,
+	          maxDistance: 260,
+	          mode: "orbit", // orbit | fp
+	          fpAnimalId: null,
+	          fpYawOffset: 0,
+	          fpPitch: 0.08,
+	        };
+
+	        const frame = {
+	          eye: [0, 0, 0],
+	          forward: [0, 0, -1],
+	          right: [1, 0, 0],
+	          up: [0, 1, 0],
+	          aspect: 1,
+	          fovy: (60 * Math.PI) / 180,
+	          tanHalfFovy: Math.tan((60 * Math.PI) / 180 / 2),
+	          tanHalfFovx: 1,
+	        };
+
+	        const viewport = { w: 1, h: 1, dpr: 1 };
+	        const resize = () => {
+	          const dpr = clamp(window.devicePixelRatio || 1, 1, 2);
+	          const w = Math.max(1, Math.floor(el.gl.clientWidth * dpr));
+	          const h = Math.max(1, Math.floor(el.gl.clientHeight * dpr));
+	          if (w === viewport.w && h === viewport.h && dpr === viewport.dpr) return false;
+	          viewport.dpr = dpr;
+	          viewport.w = w;
+	          viewport.h = h;
+	          if (el.gl.width !== w) el.gl.width = w;
+	          if (el.gl.height !== h) el.gl.height = h;
+	          if (el.fx.width !== w) el.fx.width = w;
+	          if (el.fx.height !== h) el.fx.height = h;
+	          return true;
+	        };
+
+        const project = (viewProj, worldPos) => {
+          const clip = m4.transformVec4(viewProj, worldPos[0], worldPos[1], worldPos[2], 1);
+          const w = clip[3];
+          if (w <= 0.0001) return null;
+          const ndcX = clip[0] / w;
+          const ndcY = clip[1] / w;
+          const ndcZ = clip[2] / w;
+          if (ndcZ < -1.2 || ndcZ > 1.2) return null;
+          const x = (ndcX * 0.5 + 0.5) * (viewport.w / viewport.dpr);
+          const y = (1 - (ndcY * 0.5 + 0.5)) * (viewport.h / viewport.dpr);
+          return { x, y, ndcZ };
+        };
+
+        const sim = {
+          seed: 1337,
+          rng: makeRng(1337),
+          dayLength: 120,
+          dayT: 0.32,
+          speed: 1.25,
+          weatherMode: "auto",
+          desiredAnimals: 8,
+        };
+
+        const weather = {
+          current: "clear",
+          until: 0,
+          blend: 1,
+          wind: 0.0,
+        };
+
+        const speech = {
+          greet: [
+            ["Ohayo !", "Ohayo !"],
+            ["Beau temps aujourd’hui.", "Oui, parfait pour marcher."],
+            ["Tu as vu les rizières ?", "Elles brillent comme un miroir."],
+            ["On fait une pause ?", "Bonne idée."],
+            ["J’ai senti une odeur de sakura.", "Peut-être près du torii."],
+          ],
+          rain: [
+            ["La pluie tombe…", "On se met à l’abri."],
+            ["Ça sent la terre humide.", "J’aime bien."],
+          ],
+          night: [
+            ["La nuit est calme.", "Chut… écoute."],
+            ["Tu vois les étoiles ?", "Elles scintillent."],
+          ],
+          random: [
+            "…",
+            "Hm.",
+            "Je me promène.",
+            "Je cherche un endroit doux.",
+            "J’observe les lucioles (imaginaire).",
+            "Je suis fatigué·e.",
+          ],
+        };
+
+        const animalDefs = [
+          { species: "Renard", name: "Kiko", tint: [1.0, 0.52, 0.22] },
+          { species: "Tanuki", name: "Momo", tint: [0.62, 0.48, 0.36] },
+          { species: "Cerf", name: "Sora", tint: [0.75, 0.6, 0.35] },
+          { species: "Chat", name: "Yuki", tint: [0.82, 0.82, 0.84] },
+          { species: "Lapin", name: "Hana", tint: [0.92, 0.9, 0.85] },
+          { species: "Grue", name: "Tsuru", tint: [0.92, 0.92, 0.98] },
+          { species: "Sanglier", name: "Kuma", tint: [0.38, 0.3, 0.26] },
+          { species: "Chien", name: "Aki", tint: [0.9, 0.72, 0.42] },
+          { species: "Chat", name: "Nori", tint: [0.25, 0.25, 0.27] },
+          { species: "Renard", name: "Hoshi", tint: [0.95, 0.5, 0.18] },
+          { species: "Lapin", name: "Kuri", tint: [0.9, 0.86, 0.78] },
+          { species: "Tanuki", name: "Miso", tint: [0.56, 0.42, 0.33] },
+        ];
+
+        const bubblePool = (() => {
+          const pool = [];
+          const get = () => {
+            const el = pool.pop() || document.createElement("div");
+            el.className = "bubble";
+            el.dataset.show = "0";
+            el.style.transform = "translate(-9999px,-9999px)";
+            el.textContent = "";
+            el.bubbleT = 0;
+            if (!el.parentNode) el.bubbleAdded = false;
+            return el;
+          };
+          const release = (bubble) => {
+            bubble.dataset.show = "0";
+            bubble.style.transform = "translate(-9999px,-9999px)";
+            bubble.textContent = "";
+            pool.push(bubble);
+          };
+          return { get, release };
+        })();
+
+        const makeAnimal = (id, def) => {
+          const angle = sim.rng() * Math.PI * 2;
+          const r = lerp(4, 17, Math.sqrt(sim.rng()));
+          const x = Math.cos(angle) * r;
+          const z = Math.sin(angle) * r;
+          const y = terrain.height(x, z) + 0.35;
+          const yaw = sim.rng() * Math.PI * 2;
+          return {
+            id,
+            species: def.species,
+            name: def.name,
+            tint: def.tint,
+            pos: [x, y, z],
+            yaw,
+            speed: lerp(1.1, 1.9, sim.rng()),
+            state: "walk",
+            until: 0,
+            target: [x, z],
+            partner: null,
+            mood: 0.5,
+            step: sim.rng() * Math.PI * 2,
+            bubble: null,
+            bubbleText: "",
+            bubbleUntil: 0,
+            talkCooldownUntil: 0,
+            sleepiness: lerp(0.2, 0.6, sim.rng()),
+          };
+        };
+
+        const world = {
+          animals: [],
+          statics: [],
+          interactionsCooldownUntil: 0,
+        };
+
+	        const pickInside = (maxR = terrain.radius - 3.8, minR = 3) => {
+	          const rMax = Math.max(minR + 0.1, Math.min(maxR, terrain.radius - 2.2));
+	          for (let i = 0; i < 80; i++) {
+	            const angle = sim.rng() * Math.PI * 2;
+	            const r = lerp(minR, rMax, Math.sqrt(sim.rng()));
+	            const x = Math.cos(angle) * r;
+	            const z = Math.sin(angle) * r;
+	            const h = terrain.height(x, z);
+	            if (h > -1.4) return [x, z];
+	          }
+	          return [0, 0];
+	        };
+
+	        const rebuildWorld = () => {
+	          sim.rng = makeRng(sim.seed);
+	          world.animals.length = 0;
+	          world.statics.length = 0;
+	          world.interactionsCooldownUntil = 0;
+
+          const desired = sim.desiredAnimals;
+          for (let i = 0; i < desired; i++) {
+            const def = animalDefs[i % animalDefs.length];
+            world.animals.push(makeAnimal(i, def));
+          }
+
+          const addStatic = (posXZ, scale, tint, yaw = 0) => {
+            const y = terrain.height(posXZ[0], posXZ[1]) + scale[1] * 0.5;
+            world.statics.push({ pos: [posXZ[0], y, posXZ[1]], scale, tint, yaw });
+          };
+
+          const isWet = (s) => s === "water" || s === "river";
+          const isBuildable = (x, z) => !isWet(terrain.surface(x, z));
+
+          const addTree = (x, z, opts = {}) => {
+            const h = terrain.height(x, z);
+            const yaw = opts.yaw ?? sim.rng() * Math.PI * 2;
+            const trunkH = opts.trunkH ?? lerp(1.7, 2.8, sim.rng());
+            const trunkR = opts.trunkR ?? lerp(0.34, 0.48, sim.rng());
+            const leaves = opts.leaves ?? [lerp(1.2, 2.1, sim.rng()), lerp(1.4, 2.6, sim.rng()), lerp(1.2, 2.1, sim.rng())];
+            const trunkTint = opts.trunkTint ?? [0.26, 0.16, 0.09];
+            const leafTint = opts.leafTint ?? [0.14, 0.58, 0.2];
+            world.statics.push({ pos: [x, h + trunkH * 0.5, z], scale: [trunkR, trunkH, trunkR], tint: trunkTint, yaw });
+            world.statics.push({ pos: [x, h + trunkH + leaves[1] * 0.5, z], scale: leaves, tint: leafTint, yaw });
+          };
+
+          const addBambooClump = (x, z, stalks = 6, radius = 1.8) => {
+            const centerSurface = terrain.surface(x, z);
+            if (isWet(centerSurface) || centerSurface === "path") return false;
+            const stem = [0.12, 0.72, 0.26];
+            const node = [0.08, 0.58, 0.22];
+            const leaf = [0.18, 0.88, 0.28];
+
+            for (let i = 0; i < stalks; i++) {
+              const a = sim.rng() * Math.PI * 2;
+              const r = radius * Math.sqrt(sim.rng());
+              const sx = x + Math.cos(a) * r;
+              const sz = z + Math.sin(a) * r;
+              const s = terrain.surface(sx, sz);
+              if (isWet(s) || s === "path") continue;
+
+              const h = terrain.height(sx, sz);
+              const height = lerp(2.6, 6.2, sim.rng());
+              const yaw = sim.rng() * Math.PI * 2;
+              const stemTint = [stem[0], stem[1], stem[2]];
+              const nodeTint = [node[0], node[1], node[2]];
+              const leafTint = [leaf[0], leaf[1], leaf[2]];
+
+              world.statics.push({ pos: [sx, h + height * 0.5, sz], scale: [0.16, height, 0.16], tint: stemTint, yaw });
+              world.statics.push({ pos: [sx, h + height * 0.34, sz], scale: [0.2, 0.06, 0.2], tint: nodeTint, yaw });
+              world.statics.push({ pos: [sx, h + height * 0.68, sz], scale: [0.2, 0.06, 0.2], tint: nodeTint, yaw });
+
+              const leafYaw = yaw + (sim.rng() - 0.5) * 0.9;
+              world.statics.push({ pos: [sx, h + height - 0.14, sz], scale: [0.9, 0.12, 0.46], tint: leafTint, yaw: leafYaw });
+              if (sim.rng() < 0.7) {
+                world.statics.push({ pos: [sx, h + height - 0.34, sz], scale: [0.6, 0.12, 0.38], tint: leafTint, yaw: leafYaw + 1.25 });
+              }
+            }
+            return true;
+          };
+
+          const addHouse = (x, z, yaw, scale = 1) => {
+            const s = terrain.surface(x, z);
+            if (isWet(s)) return false;
+            const h = terrain.height(x, z);
+            const body = [2.4 * scale, 1.2 * scale, 2.0 * scale];
+            const roof = [2.9 * scale, 0.75 * scale, 2.45 * scale];
+            const door = [0.52 * scale, 0.82 * scale, 0.12 * scale];
+            world.statics.push({ pos: [x, h + body[1] * 0.5, z], scale: body, tint: [0.34, 0.24, 0.14], yaw });
+            world.statics.push({ pos: [x, h + body[1] + roof[1] * 0.5 + 0.04 * scale, z], scale: roof, tint: [0.12, 0.12, 0.16], yaw });
+            const fwd = 1.05 * scale;
+            world.statics.push({ pos: [x + Math.sin(yaw) * fwd, h + 0.55 * scale, z + Math.cos(yaw) * fwd], scale: door, tint: [0.16, 0.1, 0.06], yaw });
+            return true;
+          };
+
+          const addStele = (x, z, yaw = sim.rng() * Math.PI * 2, scale = 1) => {
+            const s = terrain.surface(x, z);
+            if (isWet(s)) return false;
+            const h = terrain.height(x, z);
+            const base = [0.85 * scale, 0.28 * scale, 0.85 * scale];
+            const slab = [0.3 * scale, 1.4 * scale, 0.2 * scale];
+            world.statics.push({ pos: [x, h + base[1] * 0.5, z], scale: base, tint: [0.32, 0.33, 0.36], yaw });
+            world.statics.push({ pos: [x, h + base[1] + slab[1] * 0.5, z], scale: slab, tint: [0.56, 0.58, 0.64], yaw });
+            return true;
+          };
+
+          const placeNear = (centerX, centerZ, radius, predicate, tries = 160) => {
+            for (let i = 0; i < tries; i++) {
+              const a = sim.rng() * Math.PI * 2;
+              const r = radius * Math.sqrt(sim.rng());
+              const x = centerX + Math.cos(a) * r;
+              const z = centerZ + Math.sin(a) * r;
+              if (Math.hypot(x, z) > terrain.radius - 4.0) continue;
+              if (predicate(x, z)) return [x, z];
+            }
+            return null;
+          };
+
+          const placeNearPath = (maxR, tries = 220) => {
+            for (let i = 0; i < tries; i++) {
+              const [x, z] = pickInside(maxR);
+              if (terrain.surface(x, z) !== "path") continue;
+              const sign = sim.rng() < 0.5 ? -1 : 1;
+              const ox = (1.8 + sim.rng() * 2.6) * sign;
+              const oz = (sim.rng() - 0.5) * 1.2;
+              const px = x + ox;
+              const pz = z + oz;
+              const s = terrain.surface(px, pz);
+              if (isWet(s) || s === "path") continue;
+              return [px, pz];
+            }
+            return null;
+          };
+
+	          const baseTop = -2.45;
+	          const baseSize = terrain.worldSize + 2;
+	          world.statics.push({ pos: [0, baseTop - 1.7, 0], scale: [baseSize, 3.4, baseSize], tint: [0.18, 0.13, 0.09], yaw: 0 });
+	          world.statics.push({ pos: [0, baseTop - 0.2, 0], scale: [baseSize + 2.2, 0.4, baseSize + 2.2], tint: [0.1, 0.08, 0.06], yaw: 0 });
+
+          const toriiXZ = [9.8, -8.6];
+          const toriiY = terrain.height(toriiXZ[0], toriiXZ[1]);
+          const verm = [0.96, 0.16, 0.14];
+          const woodDark = [0.22, 0.14, 0.08];
+          world.statics.push({ pos: [toriiXZ[0] - 1.25, toriiY + 1.3, toriiXZ[1]], scale: [0.32, 2.6, 0.32], tint: verm, yaw: 0 });
+          world.statics.push({ pos: [toriiXZ[0] + 1.25, toriiY + 1.3, toriiXZ[1]], scale: [0.32, 2.6, 0.32], tint: verm, yaw: 0 });
+          world.statics.push({ pos: [toriiXZ[0], toriiY + 2.75, toriiXZ[1]], scale: [3.2, 0.28, 0.44], tint: verm, yaw: 0 });
+          world.statics.push({ pos: [toriiXZ[0], toriiY + 2.45, toriiXZ[1]], scale: [2.7, 0.22, 0.32], tint: [0.76, 0.1, 0.1], yaw: 0 });
+          world.statics.push({ pos: [toriiXZ[0], toriiY + 1.8, toriiXZ[1] + 0.14], scale: [0.28, 1.2, 0.22], tint: woodDark, yaw: 0 });
+
+          const sakuraLeaf = [0.96, 0.66, 0.82];
+          for (let i = 0; i < 12; i++) {
+            const spot = placeNear(
+              toriiXZ[0],
+              toriiXZ[1],
+              7.5,
+              (x, z) => isBuildable(x, z) && terrain.surface(x, z) !== "path"
+            );
+            if (!spot) break;
+            addTree(spot[0], spot[1], {
+              leafTint: sakuraLeaf,
+              leaves: [lerp(1.1, 1.8, sim.rng()), lerp(1.3, 2.1, sim.rng()), lerp(1.1, 1.8, sim.rng())],
+              trunkH: lerp(1.6, 2.4, sim.rng()),
+              trunkR: lerp(0.32, 0.42, sim.rng()),
+            });
+          }
+
+          for (let i = 0; i < 10; i++) {
+            const p = placeNear(toriiXZ[0], toriiXZ[1], 18, (x, z) => terrain.surface(x, z) === "path");
+            if (!p) continue;
+            const sign = sim.rng() < 0.5 ? -1 : 1;
+            const px = p[0] + sign * (1.9 + sim.rng() * 1.3);
+            const pz = p[1] + (sim.rng() - 0.5) * 1.1;
+            addStele(px, pz, sim.rng() * Math.PI * 2, lerp(0.9, 1.1, sim.rng()));
+          }
+
+          const houseXZ = [-7.4, 8.8];
+          addStatic(houseXZ, [3.2, 1.45, 2.6], [0.25, 0.18, 0.12], 0.4);
+          const hy = terrain.height(houseXZ[0], houseXZ[1]);
+          world.statics.push({ pos: [houseXZ[0], hy + 2.25, houseXZ[1]], scale: [3.6, 0.9, 3.0], tint: [0.12, 0.12, 0.14], yaw: 0.4 });
+          world.statics.push({ pos: [houseXZ[0], hy + 1.7, houseXZ[1] + 1.25], scale: [0.9, 0.95, 0.1], tint: [0.12, 0.08, 0.06], yaw: 0.4 });
+
+          const villageCenter = [16, -2];
+          for (let i = 0; i < 10; i++) {
+            const spot = placeNear(villageCenter[0], villageCenter[1], 12, (x, z) => isBuildable(x, z) && terrain.surface(x, z) !== "path");
+            if (!spot) continue;
+            addHouse(spot[0], spot[1], sim.rng() * Math.PI * 2, lerp(0.85, 1.15, sim.rng()));
+          }
+
+          for (let i = 0; i < 6; i++) {
+            const z = lerp(-terrain.paddyBounds * 0.9, terrain.paddyBounds * 0.85, sim.rng());
+            const cx = terrain.riverCenterX(z);
+            const sign = sim.rng() < 0.5 ? -1 : 1;
+            const x = cx + sign * (8 + sim.rng() * 7);
+            if (!isBuildable(x, z)) continue;
+            addHouse(x, z, sim.rng() * Math.PI * 2, lerp(0.75, 1.05, sim.rng()));
+          }
+
+	          for (let i = 0; i < 60; i++) {
+	            const [x, z] = pickInside(terrain.radius * 0.94);
+	            const s = terrain.surface(x, z);
+	            if (isWet(s) || s === "path") continue;
+	            const v = 0.82 + sim.rng() * 0.35;
+	            const leafTint = sim.rng() < 0.03 ? sakuraLeaf : [0.14 * v, 0.58 * v, 0.2 * v];
+	            addTree(x, z, { leafTint });
+	          }
+
+	          const forestCenter = [92, 50];
+	          const forestRadius = 54;
+		          for (let i = 0; i < 240; i++) {
+		            const a = sim.rng() * Math.PI * 2;
+		            const r = forestRadius * Math.sqrt(sim.rng());
+	            const x = forestCenter[0] + Math.cos(a) * r;
+	            const z = forestCenter[1] + Math.sin(a) * r;
+	            if (Math.hypot(x, z) > terrain.radius - 5.0) continue;
+	            const s = terrain.surface(x, z);
+	            if (isWet(s) || s === "path") continue;
+	            const v = 0.78 + sim.rng() * 0.32;
+	            addTree(x, z, {
+	              trunkH: lerp(2.0, 3.2, sim.rng()),
+	              trunkR: lerp(0.34, 0.52, sim.rng()),
+	              leaves: [lerp(1.5, 2.6, sim.rng()), lerp(1.7, 3.2, sim.rng()), lerp(1.5, 2.6, sim.rng())],
+		              leafTint: [0.12 * v, 0.62 * v, 0.2 * v],
+		            });
+		          }
+
+		          const bambooCenter = [forestCenter[0] - 46, forestCenter[1] + 18];
+		          for (let i = 0; i < 26; i++) {
+		            const spot = placeNear(
+		              bambooCenter[0],
+		              bambooCenter[1],
+		              26,
+		              (x, z) => isBuildable(x, z) && terrain.surface(x, z) !== "path"
+		            );
+		            if (!spot) continue;
+		            addBambooClump(spot[0], spot[1], 4 + Math.floor(sim.rng() * 6), 1.4 + sim.rng() * 1.2);
+		          }
+
+		          for (let i = 0; i < 32; i++) {
+		            const z = lerp(-terrain.paddyBounds * 0.95, terrain.paddyBounds * 0.95, sim.rng());
+		            const cx = terrain.riverCenterX(z);
+		            const sign = sim.rng() < 0.5 ? -1 : 1;
+		            const x = cx + sign * (5.8 + sim.rng() * 11.5);
+		            if (Math.hypot(x, z) > terrain.radius - 5.0) continue;
+		            addBambooClump(x, z, 4 + Math.floor(sim.rng() * 5), 1.2 + sim.rng() * 1.1);
+		          }
+
+		          for (let i = 0; i < 10; i++) {
+		            const spot = placeNear(
+		              toriiXZ[0] + 9,
+		              toriiXZ[1] - 4,
+		              14,
+		              (x, z) => isBuildable(x, z) && terrain.surface(x, z) !== "path"
+		            );
+		            if (!spot) continue;
+		            addBambooClump(spot[0], spot[1], 4 + Math.floor(sim.rng() * 5), 1.1 + sim.rng() * 1.0);
+		          }
+
+		          for (let i = 0; i < 40; i++) {
+		            const [x, z] = pickInside(terrain.radius * 0.98);
+		            const s0 = terrain.surface(x, z);
+	            if (isWet(s0) || s0 === "path") continue;
+	            const h = terrain.height(x, z);
+	            const s = [lerp(0.55, 1.6, sim.rng()), lerp(0.28, 0.95, sim.rng()), lerp(0.55, 1.6, sim.rng())];
+	            const v = 0.78 + sim.rng() * 0.22;
+	            world.statics.push({ pos: [x, h + s[1] * 0.5, z], scale: s, tint: [0.46 * v, 0.47 * v, 0.52 * v], yaw: sim.rng() * Math.PI * 2 });
+	          }
+
+	          for (let i = 0; i < 18; i++) {
+	            const p = placeNearPath(terrain.paddyBounds + 85);
+	            if (!p) continue;
+	            const x = p[0];
+	            const z = p[1];
+	            const h = terrain.height(x, z);
+	            const yaw = sim.rng() * Math.PI * 2;
+	            world.statics.push({ pos: [x, h + 0.5, z], scale: [0.22, 1.0, 0.22], tint: [0.22, 0.16, 0.1], yaw });
+	            world.statics.push({ pos: [x, h + 1.1, z], scale: [0.78, 0.22, 0.78], tint: [0.26, 0.26, 0.3], yaw });
+	          }
+
+	          for (let i = 0; i < 18; i++) {
+	            const p = placeNearPath(terrain.paddyBounds + 95);
+	            if (!p) continue;
+	            addStele(p[0], p[1], sim.rng() * Math.PI * 2, lerp(0.9, 1.25, sim.rng()));
+	          }
+
+	          const mode = el.weather.value;
+	          const t = nowSeconds();
+	          weather.blend = 1;
+	          weather.wind = lerp(-0.35, 0.35, sim.rng());
+	          if (mode === "auto") {
+	            weather.current = "clear";
+	            weather.until = t + lerp(10, 18, sim.rng());
+	          } else {
+	            weather.current = mode;
+	            weather.until = t + 999999;
+	          }
+
+		          toast(`<strong>${desired}</strong> animaux relâchés dans la campagne.`, 1600);
+		        };
+
+	        const getAnimalById = (id) => {
+	          if (id == null) return null;
+	          return world.animals.find((a) => a.id === id) || null;
+	        };
+
+	        const enterFirstPerson = (animal) => {
+	          camera.mode = "fp";
+	          camera.fpAnimalId = animal.id;
+	          camera.fpYawOffset = 0;
+	          camera.fpPitch = 0.08;
+	          toast(`<strong>Vue 1ère personne</strong> — ${animal.name} (${animal.species})<br/>Double‑clic pour quitter, <code>Échap</code> aussi.`, 2600);
+	        };
+
+	        const exitFirstPerson = () => {
+	          camera.mode = "orbit";
+	          camera.fpAnimalId = null;
+	          toast("<strong>Vue orbitale</strong> restaurée.", 1200);
+	        };
+
+	        const pickAnimalAt = (clientX, clientY) => {
+	          const rect = el.gl.getBoundingClientRect();
+	          const x = (clientX - rect.left) / Math.max(1, rect.width);
+	          const y = (clientY - rect.top) / Math.max(1, rect.height);
+	          const ndcX = x * 2 - 1;
+	          const ndcY = 1 - y * 2;
+
+	          const dir = v3.norm(
+	            v3.add(
+	              frame.forward,
+	              v3.add(v3.scale(frame.right, ndcX * frame.tanHalfFovx), v3.scale(frame.up, ndcY * frame.tanHalfFovy))
+	            )
+	          );
+	          const origin = frame.eye;
+
+	          let best = null;
+	          let bestT = Infinity;
+
+	          for (const a of world.animals) {
+	            const r = a.species === "Grue" ? 0.9 : 0.72;
+	            const center = [a.pos[0], a.pos[1] + (a.species === "Grue" ? 1.15 : 0.78), a.pos[2]];
+	            const oc = v3.sub(origin, center);
+	            const b = v3.dot(oc, dir);
+	            const c = v3.dot(oc, oc) - r * r;
+	            const disc = b * b - c;
+	            if (disc < 0) continue;
+	            const s = Math.sqrt(disc);
+	            let t = -b - s;
+	            if (t <= 0.0) t = -b + s;
+	            if (t > 0.0 && t < bestT) {
+	              bestT = t;
+	              best = a;
+	            }
+	          }
+
+	          return best;
+	        };
+
+        const setBubble = (animal, text, seconds = 2.0) => {
+          const t = nowSeconds();
+          animal.bubbleText = text;
+          animal.bubbleUntil = t + seconds;
+          if (!animal.bubble) {
+            const b = bubblePool.get();
+            if (!b.bubbleAdded) {
+              el.bubbles.appendChild(b);
+              b.bubbleAdded = true;
+            }
+            animal.bubble = b;
+          }
+          if (animal.bubble) {
+            const mixToWhite = 0.32;
+            const r = Math.round(255 * clamp(animal.tint[0] * (1 - mixToWhite) + 1 * mixToWhite, 0, 1));
+            const g = Math.round(255 * clamp(animal.tint[1] * (1 - mixToWhite) + 1 * mixToWhite, 0, 1));
+            const b = Math.round(255 * clamp(animal.tint[2] * (1 - mixToWhite) + 1 * mixToWhite, 0, 1));
+            animal.bubble.style.setProperty("--bubble-rgb", `${r}, ${g}, ${b}`);
+            animal.bubble.textContent = text;
+            animal.bubble.dataset.show = "1";
+          }
+        };
+
+        const clearBubble = (animal) => {
+          if (!animal.bubble) return;
+          animal.bubble.dataset.show = "0";
+        };
+
+        const decideNext = (animal, nightFactor) => {
+          const t = nowSeconds();
+          animal.partner = null;
+          clearBubble(animal);
+
+          const rainy = weather.current === "rain";
+          const foggy = weather.current === "fog";
+          const calm = clamp(0.35 + nightFactor * 0.9 + (rainy ? 0.25 : 0) + (foggy ? 0.1 : 0), 0, 1);
+          const sleepProb = clamp(animal.sleepiness * 0.55 + calm * 0.35, 0.05, 0.75);
+          const idleProb = clamp(0.18 + calm * 0.22, 0.12, 0.5);
+
+          const r = sim.rng();
+          if (r < sleepProb) {
+            animal.state = "sleep";
+            animal.until = t + lerp(3.5, 8.0, sim.rng());
+            setBubble(animal, `${animal.name} : Zzz…`, 1.8);
+            return;
+          }
+
+          if (r < sleepProb + idleProb) {
+            animal.state = "idle";
+            animal.until = t + lerp(1.2, 3.2, sim.rng());
+            if (sim.rng() < 0.55) setBubble(animal, `${animal.name} observe…`, 1.6);
+            return;
+          }
+
+	          const localR = Math.min(terrain.radius * 0.42, terrain.paddyBounds + 10);
+	          const maxR = sim.rng() < 0.18 ? terrain.radius * 0.95 : localR;
+	          const [tx, tz] = pickInside(maxR);
+	          animal.state = "walk";
+	          animal.target = [tx, tz];
+	          animal.until = t + lerp(5.0, 12.0, sim.rng());
+	        };
+
+        const startTalk = (a, b, kind) => {
+          const t = nowSeconds();
+          a.state = "talk";
+          b.state = "talk";
+          a.partner = b.id;
+          b.partner = a.id;
+          const duration = lerp(2.0, 3.6, sim.rng());
+          a.until = t + duration;
+          b.until = t + duration;
+          a.talkCooldownUntil = t + 4.0;
+          b.talkCooldownUntil = t + 4.0;
+          world.interactionsCooldownUntil = t + 1.0;
+
+          const pick = (arr) => arr[Math.floor(sim.rng() * arr.length)];
+          const pair = pick(speech[kind] || speech.greet);
+          const [ta, tb] = Array.isArray(pair) ? pair : [String(pair), String(pair)];
+          setBubble(a, `${a.name} : ${ta}`, duration);
+          setBubble(b, `${b.name} : ${tb}`, duration);
+        };
+
+        const updateAnimals = (dt, nightFactor) => {
+          const t = nowSeconds();
+          for (const a of world.animals) {
+            const h = terrain.height(a.pos[0], a.pos[2]);
+            a.pos[1] = h + 0.35;
+
+            if (a.state === "walk") {
+              const dx = a.target[0] - a.pos[0];
+              const dz = a.target[1] - a.pos[2];
+              const d = Math.hypot(dx, dz);
+              if (d < 0.35 || t > a.until) {
+                decideNext(a, nightFactor);
+              } else {
+                const dirX = dx / (d || 1);
+                const dirZ = dz / (d || 1);
+                a.yaw = Math.atan2(dirX, dirZ);
+                const s = a.speed * (a.state === "walk" ? 1 : 0.65);
+                a.pos[0] += dirX * s * dt;
+                a.pos[2] += dirZ * s * dt;
+                a.step += dt * (2.6 + a.speed);
+              }
+            } else if (a.state === "idle") {
+              if (t > a.until) decideNext(a, nightFactor);
+              if (t + 0.2 > a.bubbleUntil && sim.rng() < 0.008) setBubble(a, `${a.name} : ${speech.random[Math.floor(sim.rng() * speech.random.length)]}`, 1.8);
+            } else if (a.state === "sleep") {
+              if (t > a.until) decideNext(a, nightFactor);
+              if (t + 0.2 > a.bubbleUntil && sim.rng() < 0.02) setBubble(a, `${a.name} : Zzz…`, 1.5);
+            } else if (a.state === "talk") {
+              if (t > a.until) decideNext(a, nightFactor);
+            }
+          }
+
+          if (t < world.interactionsCooldownUntil) return;
+
+          for (let i = 0; i < world.animals.length; i++) {
+            const a = world.animals[i];
+            if (a.state === "sleep") continue;
+            if (t < a.talkCooldownUntil) continue;
+            for (let j = i + 1; j < world.animals.length; j++) {
+              const b = world.animals[j];
+              if (b.state === "sleep") continue;
+              if (t < b.talkCooldownUntil) continue;
+
+              const dist = v3.distXZ(a.pos, b.pos);
+              if (dist > 2.25) continue;
+              if (sim.rng() > 0.008) continue;
+
+              const rainBias = weather.current === "rain" ? 0.6 : 0.0;
+              const nightBias = nightFactor > 0.6 ? 0.6 : 0.0;
+              const kindPick = sim.rng();
+              if (kindPick < 0.25 + rainBias) startTalk(a, b, "rain");
+              else if (kindPick < 0.5 + nightBias) startTalk(a, b, "night");
+              else startTalk(a, b, "greet");
+              return;
+            }
+          }
+        };
+
+        const sky = (sunY) => {
+          const day = [0.28, 0.5, 0.85];
+          const dusk = [0.9, 0.45, 0.22];
+          const night = [0.03, 0.05, 0.11];
+          const t = clamp((sunY + 0.22) / 1.22, 0, 1);
+          const duskAmt = 1 - Math.abs(t * 2 - 1);
+          const base = [
+            lerp(night[0], day[0], t),
+            lerp(night[1], day[1], t),
+            lerp(night[2], day[2], t),
+          ];
+          return [
+            lerp(base[0], dusk[0], duskAmt * 0.35),
+            lerp(base[1], dusk[1], duskAmt * 0.35),
+            lerp(base[2], dusk[2], duskAmt * 0.25),
+          ];
+        };
+
+        const weatherIntensity = (nightFactor) => {
+          const base = { rain: 0, fog: 0, snow: 0 };
+          if (weather.current === "rain") base.rain = weather.blend;
+          if (weather.current === "fog") base.fog = weather.blend;
+          if (weather.current === "snow") base.snow = weather.blend;
+          if (weather.current === "clear") {
+            base.fog = 0.05 * (1 - nightFactor);
+          }
+          if (base.fog > 0) base.fog = clamp(base.fog + nightFactor * 0.35, 0, 1);
+          return base;
+        };
+
+        const updateWeather = (dt, nightFactor) => {
+          const t = nowSeconds();
+          const mode = sim.weatherMode;
+
+          const pick = () => {
+            const r = sim.rng();
+            if (r < 0.52) return "clear";
+            if (r < 0.74) return "rain";
+            if (r < 0.88) return "fog";
+            return "snow";
+          };
+
+          if (mode === "auto") {
+            if (t > weather.until) {
+              weather.current = pick();
+              weather.until = t + lerp(12, 26, sim.rng());
+              weather.blend = 0;
+              weather.wind = lerp(-0.8, 0.8, sim.rng());
+            } else {
+              weather.blend = lerp(weather.blend, 1, 1 - Math.pow(0.001, dt));
+              weather.wind = lerp(weather.wind, weather.wind * 0.98, dt);
+            }
+          } else {
+            weather.current = mode;
+            weather.blend = lerp(weather.blend, 1, 1 - Math.pow(0.0008, dt));
+          }
+
+          if (weather.current === "snow" && nightFactor < 0.25) weather.wind *= 0.95;
+        };
+
+        const bindAttributes = (mesh) => {
+          gl.bindBuffer(gl.ARRAY_BUFFER, mesh.positionBuffer);
+          gl.enableVertexAttribArray(loc.a_position);
+          gl.vertexAttribPointer(loc.a_position, 3, gl.FLOAT, false, 0, 0);
+          gl.bindBuffer(gl.ARRAY_BUFFER, mesh.normalBuffer);
+          gl.enableVertexAttribArray(loc.a_normal);
+          gl.vertexAttribPointer(loc.a_normal, 3, gl.FLOAT, false, 0, 0);
+          gl.bindBuffer(gl.ARRAY_BUFFER, mesh.colorBuffer);
+          gl.enableVertexAttribArray(loc.a_color);
+          gl.vertexAttribPointer(loc.a_color, 3, gl.FLOAT, false, 0, 0);
+          if (mesh.matBuffer) {
+            gl.bindBuffer(gl.ARRAY_BUFFER, mesh.matBuffer);
+            gl.enableVertexAttribArray(loc.a_mat);
+            gl.vertexAttribPointer(loc.a_mat, 1, gl.FLOAT, false, 0, 0);
+          } else {
+            gl.disableVertexAttribArray(loc.a_mat);
+            gl.vertexAttrib1f(loc.a_mat, 0);
+          }
+        };
+
+        const drawCube = (model, tint) => {
+          gl.uniformMatrix4fv(loc.u_model, false, model);
+          gl.uniform3f(loc.u_tint, tint[0], tint[1], tint[2]);
+          gl.drawArrays(gl.TRIANGLES, 0, cube.vertexCount);
+        };
+
+        const drawAnimal = (a, nightFactor) => {
+          const bob = a.state === "walk" ? Math.sin(a.step) * 0.04 : 0;
+          const basePos = [a.pos[0], a.pos[1] + bob, a.pos[2]];
+
+          const base = m4.trsY(basePos, a.yaw, [1, 1, 1]);
+          const parts = [];
+          const push = (localPos, localScale, tint, yaw = 0) => {
+            const m = m4.trsY(localPos, yaw, localScale);
+            parts.push({ m: m4.multiply(base, m), tint });
+          };
+
+          const sleepyTint = nightFactor > 0.6 && a.state === "sleep" ? [0.85, 0.9, 1.0] : [1, 1, 1];
+          const mainTint = [a.tint[0] * sleepyTint[0], a.tint[1] * sleepyTint[1], a.tint[2] * sleepyTint[2]];
+
+          push([0, 0.45, 0], [0.95, 0.6, 0.55], mainTint);
+          push([0, 0.8, 0.62], [0.46, 0.42, 0.42], mainTint);
+          push([0.18, 1.08, 0.64], [0.12, 0.26, 0.12], mainTint);
+          push([-0.18, 1.08, 0.64], [0.12, 0.26, 0.12], mainTint);
+
+          const legTint = [mainTint[0] * 0.72, mainTint[1] * 0.72, mainTint[2] * 0.72];
+          const gait = a.state === "walk" ? Math.sin(a.step * 2.2) * 0.08 : 0;
+          push([0.28, 0.16 + gait, 0.22], [0.16, 0.32, 0.16], legTint);
+          push([-0.28, 0.16 - gait, 0.22], [0.16, 0.32, 0.16], legTint);
+          push([0.28, 0.16 - gait, -0.22], [0.16, 0.32, 0.16], legTint);
+          push([-0.28, 0.16 + gait, -0.22], [0.16, 0.32, 0.16], legTint);
+
+          const tail = a.species === "Grue" ? [0.12, 0.62, 0.12] : [0.18, 0.42, 0.18];
+          const tailPos = a.species === "Grue" ? [0, 0.95, -0.55] : [0, 0.6, -0.55];
+          const tailYaw = a.species === "Renard" ? Math.sin(a.step * 1.1) * 0.25 : 0;
+          push(tailPos, tail, [mainTint[0] * 0.9, mainTint[1] * 0.9, mainTint[2] * 0.9], tailYaw);
+
+          if (a.species === "Grue") {
+            push([0, 1.25, 0.55], [0.15, 0.75, 0.15], [0.92, 0.92, 0.98]);
+            push([0, 1.58, 0.78], [0.12, 0.12, 0.22], [0.2, 0.2, 0.2]);
+          }
+
+          for (const p of parts) drawCube(p.m, p.tint);
+        };
+
+        const updateBubbles = (viewProj) => {
+          const t = nowSeconds();
+          for (const a of world.animals) {
+            if (!a.bubble) continue;
+
+            if (t > a.bubbleUntil) {
+              a.bubble.dataset.show = "0";
+              continue;
+            }
+
+            const headForward = 0.66;
+            const headHeight = 1.15;
+            const hx = a.pos[0] + Math.sin(a.yaw) * headForward;
+            const hz = a.pos[2] + Math.cos(a.yaw) * headForward;
+            const hy = a.pos[1] + headHeight;
+
+            const p = project(viewProj, [hx, hy, hz]);
+            if (!p) {
+              a.bubble.dataset.show = "0";
+              continue;
+            }
+
+            a.bubble.dataset.show = "1";
+            a.bubble.style.transform = `translate(${p.x}px, ${p.y}px) translate(-50%, -120%)`;
+          }
+        };
+
+        const formatClock = (dayT) => {
+          const minutes = Math.floor(dayT * 24 * 60) % (24 * 60);
+          const hh = String(Math.floor(minutes / 60)).padStart(2, "0");
+          const mm = String(minutes % 60).padStart(2, "0");
+          return `${hh}:${mm}`;
+        };
+
+	        const render = () => {
+	          gl.viewport(0, 0, viewport.w, viewport.h);
+
+	          const aspect = viewport.w / viewport.h;
+	          frame.aspect = aspect;
+	          frame.tanHalfFovx = frame.tanHalfFovy * aspect;
+
+	          const proj = m4.perspective(frame.fovy, aspect, 0.1, 1200);
+
+	          let eye = null;
+	          let target = null;
+	          let fpAnimal = null;
+
+	          if (camera.mode === "fp") {
+	            fpAnimal = getAnimalById(camera.fpAnimalId);
+	            if (fpAnimal) {
+	              const headHeight = fpAnimal.species === "Grue" ? 1.65 : 1.15;
+	              const forwardOffset = 0.24;
+	              const yaw = fpAnimal.yaw + camera.fpYawOffset;
+	              const pitch = clamp(camera.fpPitch, -1.12, 1.12);
+	              const bob = fpAnimal.state === "walk" ? Math.sin(fpAnimal.step) * 0.03 : 0;
+	              eye = [
+	                fpAnimal.pos[0] + Math.sin(yaw) * forwardOffset,
+	                fpAnimal.pos[1] + headHeight + bob,
+	                fpAnimal.pos[2] + Math.cos(yaw) * forwardOffset,
+	              ];
+	              const dir = [Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)];
+	              target = v3.add(eye, dir);
+	            } else {
+	              camera.mode = "orbit";
+	              camera.fpAnimalId = null;
+	            }
+	          }
+
+	          if (!eye || !target) {
+	            const pitch = clamp(camera.pitch, -0.08, 1.12);
+	            const yaw = camera.yaw;
+	            const dist = clamp(camera.distance, camera.minDistance, camera.maxDistance);
+	            target = camera.target;
+	            eye = [
+	              target[0] + Math.cos(pitch) * Math.sin(yaw) * dist,
+	              target[1] + Math.sin(pitch) * dist,
+	              target[2] + Math.cos(pitch) * Math.cos(yaw) * dist,
+	            ];
+	          }
+
+	          frame.eye = eye;
+	          frame.forward = v3.norm(v3.sub(target, eye));
+	          frame.right = v3.norm(v3.cross(frame.forward, [0, 1, 0]));
+	          frame.up = v3.cross(frame.right, frame.forward);
+
+	          const view = m4.lookAt(eye, target, [0, 1, 0]);
+	          const viewProj = m4.multiply(proj, view);
+
+          const angle = sim.dayT * Math.PI * 2;
+          const sunY = Math.sin(angle);
+          const sunAz = angle * 0.75 + 1.2;
+          const sunDir = v3.norm([Math.cos(sunAz), Math.max(0.08, sunY), Math.sin(sunAz)]);
+          const nightFactor = clamp((-sunY + 0.15) / 1.15, 0, 1);
+
+          const skyCol = sky(sunY);
+          const fogInt = weatherIntensity(nightFactor);
+          const fogColor = [
+            lerp(skyCol[0] * 0.55, 0.08, fogInt.fog),
+            lerp(skyCol[1] * 0.55, 0.09, fogInt.fog),
+            lerp(skyCol[2] * 0.65, 0.13, fogInt.fog),
+          ];
+
+	          gl.enable(gl.DEPTH_TEST);
+	          gl.disable(gl.CULL_FACE);
+	          gl.clearColor(skyCol[0] * 0.26, skyCol[1] * 0.26, skyCol[2] * 0.26, 1);
+	          gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+	          gl.useProgram(prog);
+	          gl.uniformMatrix4fv(loc.u_view, false, view);
+	          gl.uniformMatrix4fv(loc.u_proj, false, proj);
+	          gl.uniform3f(loc.u_cameraPos, eye[0], eye[1], eye[2]);
+	          gl.uniform1f(loc.u_time, nowSeconds());
+
+	          const moonlight = nightFactor > 0.35 ? nightFactor : 0;
+	          const lightColor = sunY > 0 ? [1.0, 0.95, 0.84] : [0.55, 0.68, 1.0];
+	          const lightStrength = sunY > 0 ? clamp(sunY * 1.25 + 0.2, 0.4, 1.35) : 0.32 + moonlight * 0.32;
+	          const ambient = clamp(0.22 + (1 - nightFactor) * 0.42 + (weather.current === "fog" ? 0.08 : 0), 0.18, 0.72);
+	          gl.uniform3f(loc.u_lightDir, sunDir[0], sunDir[1], sunDir[2]);
+	          gl.uniform3f(loc.u_lightColor, lightColor[0] * lightStrength, lightColor[1] * lightStrength, lightColor[2] * lightStrength);
+	          gl.uniform1f(loc.u_ambient, ambient);
+
+	          const fogDensity = 0.0035 + fogInt.fog * 0.025 + fogInt.rain * 0.008 + fogInt.snow * 0.012;
+	          gl.uniform3f(loc.u_fogColor, fogColor[0], fogColor[1], fogColor[2]);
+	          gl.uniform1f(loc.u_fogDensity, fogDensity);
+
+          bindAttributes(terrainMesh);
+          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, terrainMesh.indexBuffer);
+          gl.uniformMatrix4fv(loc.u_model, false, m4.identity());
+          gl.uniform3f(loc.u_tint, 1, 1, 1);
+          gl.drawElements(gl.TRIANGLES, terrainMesh.indexCount, gl.UNSIGNED_SHORT, 0);
+
+          bindAttributes(cube);
+
+          for (const o of world.statics) {
+            drawCube(m4.trsY(o.pos, o.yaw, o.scale), o.tint);
+          }
+
+          for (const a of world.animals) drawAnimal(a, nightFactor);
+
+          updateBubbles(viewProj);
+          fx.draw(viewport.w, viewport.h, fogInt, nightFactor);
+
+	          const viewLabel = camera.mode === "fp" && fpAnimal ? ` · vue: FP/${fpAnimal.name}` : "";
+	          el.status.textContent = `${formatClock(sim.dayT)} · météo: ${sim.weatherMode === "auto" ? "auto/" : ""}${weather.current} · ${world.animals.length} animaux${viewLabel}`;
+	        };
+
+	        let last = performance.now();
+	        const tick = () => {
+	          const t = performance.now();
+	          const dt = Math.min(0.05, (t - last) / 1000);
+	          last = t;
+	          resize();
+
+	          sim.speed = Number(el.timeSpeed.value);
+	          sim.dayT = (sim.dayT + (dt * sim.speed) / sim.dayLength) % 1;
+
+          sim.weatherMode = el.weather.value;
+          sim.desiredAnimals = Number(el.density.value);
+
+          const angle = sim.dayT * Math.PI * 2;
+          const nightFactor = clamp((-Math.sin(angle) + 0.15) / 1.15, 0, 1);
+          updateWeather(dt, nightFactor);
+          updateAnimals(dt, nightFactor);
+
+          const intens = weatherIntensity(nightFactor);
+          fx.update(dt, viewport.w, viewport.h, intens, nightFactor, weather.wind);
+
+          render();
+          requestAnimationFrame(tick);
+        };
+
+        const input = (() => {
+          let dragging = false;
+          let lastX = 0;
+          let lastY = 0;
+
+          const onDown = (ev) => {
+            dragging = true;
+            lastX = ev.clientX;
+            lastY = ev.clientY;
+          };
+
+	          const onMove = (ev) => {
+	            if (!dragging) return;
+	            const dx = ev.clientX - lastX;
+	            const dy = ev.clientY - lastY;
+	            lastX = ev.clientX;
+	            lastY = ev.clientY;
+	            if (camera.mode === "fp") {
+	              camera.fpYawOffset += dx * 0.0065;
+	              camera.fpPitch = clamp(camera.fpPitch + -dy * 0.006, -1.12, 1.12);
+	            } else {
+	              camera.yaw += dx * 0.0065;
+	              camera.pitch += -dy * 0.006;
+	            }
+	          };
+
+          const onUp = () => {
+            dragging = false;
+          };
+
+	          const onWheel = (ev) => {
+	            ev.preventDefault();
+	            if (camera.mode !== "orbit") return;
+	            const d = Math.sign(ev.deltaY) * 1.45;
+	            camera.distance = clamp(camera.distance + d, camera.minDistance, camera.maxDistance);
+	          };
+
+	          el.gl.addEventListener("mousedown", onDown);
+          window.addEventListener("mousemove", onMove);
+          window.addEventListener("mouseup", onUp);
+	          el.gl.addEventListener("wheel", onWheel, { passive: false });
+	          el.gl.addEventListener("dblclick", (ev) => {
+	            const hit = pickAnimalAt(ev.clientX, ev.clientY);
+	            if (hit) {
+	              if (camera.mode === "fp" && camera.fpAnimalId === hit.id) exitFirstPerson();
+	              else enterFirstPerson(hit);
+	              return;
+	            }
+	            if (camera.mode === "fp") exitFirstPerson();
+	          });
+	          window.addEventListener("keydown", (ev) => {
+	            if (ev.key === "Escape" && camera.mode === "fp") exitFirstPerson();
+	          });
+
+          let lastTouchDist = null;
+          el.gl.addEventListener(
+            "touchstart",
+            (ev) => {
+              if (ev.touches.length === 1) {
+                dragging = true;
+                lastX = ev.touches[0].clientX;
+                lastY = ev.touches[0].clientY;
+              } else if (ev.touches.length === 2) {
+                const dx = ev.touches[0].clientX - ev.touches[1].clientX;
+                const dy = ev.touches[0].clientY - ev.touches[1].clientY;
+                lastTouchDist = Math.hypot(dx, dy);
+              }
+            },
+            { passive: true }
+          );
+
+	          el.gl.addEventListener(
+	            "touchmove",
+	            (ev) => {
+	              if (ev.touches.length === 1 && dragging) {
+	                const x = ev.touches[0].clientX;
+	                const y = ev.touches[0].clientY;
+	                const dx = x - lastX;
+	                const dy = y - lastY;
+	                lastX = x;
+	                lastY = y;
+	                if (camera.mode === "fp") {
+	                  camera.fpYawOffset += dx * 0.0065;
+	                  camera.fpPitch = clamp(camera.fpPitch + -dy * 0.006, -1.12, 1.12);
+	                } else {
+	                  camera.yaw += dx * 0.0065;
+	                  camera.pitch += -dy * 0.006;
+	                }
+	              } else if (ev.touches.length === 2 && lastTouchDist != null) {
+	                if (camera.mode !== "orbit") return;
+	                const dx = ev.touches[0].clientX - ev.touches[1].clientX;
+	                const dy = ev.touches[0].clientY - ev.touches[1].clientY;
+	                const d = Math.hypot(dx, dy);
+	                const delta = (lastTouchDist - d) * 0.01;
+                camera.distance = clamp(camera.distance + delta, camera.minDistance, camera.maxDistance);
+                lastTouchDist = d;
+              }
+            },
+            { passive: true }
+          );
+
+          el.gl.addEventListener(
+            "touchend",
+            () => {
+              dragging = false;
+              lastTouchDist = null;
+            },
+            { passive: true }
+          );
+        })();
+
+        el.reset.addEventListener("click", () => {
+          sim.seed = (Math.random() * 1e9) >>> 0;
+          rebuildWorld();
+        });
+
+        window.addEventListener("resize", resize);
+        resize();
+        rebuildWorld();
+        requestAnimationFrame(tick);
+      })();
+    </script>
+  </body>
+</html>

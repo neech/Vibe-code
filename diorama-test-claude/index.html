@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js Diorama Simulation</title>
+    <link rel="stylesheet" href="styles.css">
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+
+<body>
+    <div id="canvas-container"></div>
+
+    <div id="ui-container">
+        <div class="panel">
+            <h1>Diorama Controls</h1>
+
+            <div class="control-group">
+                <label>Time of Day</label>
+                <input type="range" id="time-slider" min="0" max="24" step="0.1" value="12">
+                <div class="value-display" id="time-display">12:00</div>
+            </div>
+
+            <div class="control-group">
+                <label>Wind Speed</label>
+                <input type="range" id="wind-slider" min="0" max="10" step="0.1" value="2">
+            </div>
+
+            <div class="control-group">
+                <label>Snow Intensity</label>
+                <input type="range" id="snow-slider" min="0" max="1" step="0.01" value="0">
+            </div>
+
+            <div class="control-group">
+                <label>Cloud Cover</label>
+                <input type="range" id="cloud-slider" min="0" max="1" step="0.01" value="0.5">
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="main.js"></script>
+</body>
+
+</html>

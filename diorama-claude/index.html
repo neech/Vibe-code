@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Japanese Countryside Diorama</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box
+        }
+
+        body {
+            overflow: hidden;
+            font-family: 'Segoe UI', sans-serif;
+            background: #1a1a2e
+        }
+
+        #container {
+            width: 100vw;
+            height: 100vh
+        }
+
+        #ui {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 10px
+        }
+
+        .panel {
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 15px;
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.1)
+        }
+
+        .panel h3 {
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: #ffd700
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s;
+            margin: 3px
+        }
+
+        .btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4)
+        }
+
+        .btn.active {
+            background: linear-gradient(135deg, #f093fb, #f5576c)
+        }
+
+        select {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+            padding: 8px;
+            border-radius: 6px;
+            width: 100%
+        }
+
+        #time-display {
+            font-size: 24px;
+            text-align: center;
+            color: #ffd700
+        }
+
+        #instructions {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 100
+        }
+
+        #instructions p {
+            font-size: 11px;
+            opacity: 0.8;
+            margin: 3px 0
+        }
+
+        .speech-bubble {
+            position: absolute;
+            padding: 8px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            pointer-events: none;
+            transform: translate(-50%, -100%);
+            white-space: nowrap;
+            animation: bubble 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3)
+        }
+
+        .speech-bubble::after {
+            content: '';
+            position: absolute;
+            bottom: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 8px solid transparent;
+            border-top-color: inherit
+        }
+
+        @keyframes bubble {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -80%)
+            }
+
+            to {
+                opacity: 1;
+                transform: translate(-50%, -100%)
+            }
+        }
+
+        #fp-indicator {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-size: 14px;
+            display: none;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5)
+        }
+
+        #loading {
+            position: fixed;
+            inset: 0;
+            background: #1a1a2e;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            color: #fff;
+            font-size: 24px
+        }
+    </style>
+</head>
+
+<body>
+    <div id="loading">Loading Japanese Countryside...</div>
+    <div id="container"></div>
+    <div id="ui">
+        <div class="panel">
+            <h3>🌸 Time</h3>
+            <div id="time-display">12:00</div>
+        </div>
+        <div class="panel">
+            <h3>🌤️ Weather</h3>
+            <select id="weather-select">
+                <option value="clear">Clear</option>
+                <option value="cloudy">Cloudy</option>
+                <option value="rain">Rain</option>
+                <option value="fog">Fog</option>
+            </select>
+        </div>
+        <div class="panel">
+            <h3>📷 Camera</h3>
+            <button class="btn" id="tilt-btn">Tilt-Shift: OFF</button>
+            <button class="btn" id="reset-cam">Reset View</button>
+        </div>
+    </div>
+    <div id="instructions" class="panel">
+        <h3>Controls</h3>
+        <p>🖱️ Drag to rotate | Scroll to zoom</p>
+        <p>👆 Double-click animal for first-person view</p>
+        <p>⎋ ESC to exit first-person view</p>
+    </div>
+    <div id="fp-indicator">First Person View - Press ESC to exit</div>
+    <script
+        type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}</script>
+    <script type="module">
+        import *as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
+        import { Water } from 'three/addons/objects/Water.js';
+        import { Sky } from 'three/addons/objects/Sky.js';
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 2000);
+        camera.position.set(40, 35, 40);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(innerWidth, innerHeight);
+        renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 0.5;
+        document.getElementById('container').appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxPolarAngle = Math.PI / 2.1;
+        controls.minDistance = 10;
+        controls.maxDistance = 100;
+        controls.target.set(0, 0, 0);
+
+        // Composer for tilt-shift
+        const composer = new EffectComposer(renderer);
+        composer.addPass(new RenderPass(scene, camera));
+        const bokehPass = new BokehPass(scene, camera, { focus: 50, aperture: 0.002, maxblur: 0.01 });
+        bokehPass.enabled = false;
+        composer.addPass(bokehPass);
+
+        // Sky
+        const sky = new Sky();
+        sky.scale.setScalar(1000);
+        scene.add(sky);
+        const skyUniforms = sky.material.uniforms;
+        skyUniforms.turbidity.value = 10;
+        skyUniforms.rayleigh.value = 2;
+        skyUniforms.mieCoefficient.value = 0.005;
+        skyUniforms.mieDirectionalG.value = 0.8;
+
+        // Sun
+        const sun = new THREE.Vector3();
+        const sunLight = new THREE.DirectionalLight(0xffffff, 1);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.set(2048, 2048);
+        sunLight.shadow.camera.near = 0.5;
+        sunLight.shadow.camera.far = 200;
+        sunLight.shadow.camera.left = -60;
+        sunLight.shadow.camera.right = 60;
+        sunLight.shadow.camera.top = 60;
+        sunLight.shadow.camera.bottom = -60;
+        scene.add(sunLight);
+
+        const ambientLight = new THREE.AmbientLight(0x404080, 0.3);
+        scene.add(ambientLight);
+
+        // Time system
+        let gameTime = 12;
+        const timeSpeed = 0.02;
+
+        function updateSun() {
+            const theta = Math.PI * (gameTime / 24 - 0.25);
+            const phi = Math.PI * 0.4;
+            sun.x = Math.cos(phi) * Math.sin(theta) * 100;
+            sun.y = Math.sin(phi) * Math.sin(theta > 0 ? theta : 0.01) * 100;
+            sun.z = Math.cos(phi) * Math.cos(theta) * 100;
+            skyUniforms.sunPosition.value.copy(sun);
+            sunLight.position.copy(sun);
+            const dayFactor = Math.max(0, Math.sin(theta));
+            sunLight.intensity = dayFactor * 1.5;
+            ambientLight.intensity = 0.1 + dayFactor * 0.4;
+            const nightColor = new THREE.Color(0x1a1a3e);
+            const dayColor = new THREE.Color(0x87ceeb);
+            scene.fog = new THREE.Fog(nightColor.lerp(dayColor, dayFactor), 50, 150);
+            renderer.toneMappingExposure = 0.3 + dayFactor * 0.7;
+        }
+
+        // Terrain
+        const terrainGeo = new THREE.PlaneGeometry(120, 120, 100, 100);
+        terrainGeo.rotateX(-Math.PI / 2);
+        const pos = terrainGeo.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+            const x = pos.getX(i), z = pos.getZ(i);
+            let h = Math.sin(x * 0.05) * 3 + Math.cos(z * 0.05) * 3 + Math.sin(x * 0.1 + z * 0.1) * 1.5;
+            const riverDist = Math.abs(x + z * 0.3);
+            if (riverDist < 8) h = Math.min(h, -1 - Math.cos(riverDist / 8 * Math.PI) * 2);
+            pos.setY(i, h);
+        }
+        terrainGeo.computeVertexNormals();
+        const terrainMat = new THREE.MeshStandardMaterial({ color: 0x3d5c3d, roughness: 0.9, flatShading: true });
+        const terrain = new THREE.Mesh(terrainGeo, terrainMat);
+        terrain.receiveShadow = true;
+        scene.add(terrain);
+
+        // Water (river)
+        const waterGeo = new THREE.PlaneGeometry(15, 150, 10, 10);
+        const water = new Water(waterGeo, {
+            textureWidth: 512, textureHeight: 512,
+            waterNormals: new THREE.TextureLoader().load('https://threejs.org/examples/textures/waternormals.jpg', t => { t.wrapS = t.wrapT = THREE.RepeatWrapping }),
+            sunDirection: new THREE.Vector3(), sunColor: 0xffffff, waterColor: 0x001e0f, distortionScale: 3.7, fog: scene.fog !== undefined
+        });
+        water.rotation.x = -Math.PI / 2;
+        water.position.set(-5, -2, 0);
+        water.rotation.z = Math.PI * 0.15;
+        scene.add(water);
+
+        // Trees
+        function createTree(x, z) {
+            const g = new THREE.Group();
+            const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.5, 3, 8), new THREE.MeshStandardMaterial({ color: 0x4a3728 }));
+            trunk.position.y = 1.5; trunk.castShadow = true; g.add(trunk);
+            const foliageColor = Math.random() > 0.3 ? 0xffb7c5 : 0x228b22;
+            for (let i = 0; i < 5; i++) {
+                const leaf = new THREE.Mesh(new THREE.SphereGeometry(1.5 + Math.random(), 8, 8), new THREE.MeshStandardMaterial({ color: foliageColor }));
+                leaf.position.set((Math.random() - 0.5) * 2, 4 + Math.random() * 2, (Math.random() - 0.5) * 2);
+                leaf.castShadow = true; g.add(leaf);
+            }
+            const h = getTerrainHeight(x, z);
+            g.position.set(x, h, z);
+            scene.add(g);
+            return g;
+        }
+        function getTerrainHeight(x, z) {
+            let h = Math.sin(x * 0.05) * 3 + Math.cos(z * 0.05) * 3 + Math.sin(x * 0.1 + z * 0.1) * 1.5;
+            const riverDist = Math.abs(x + z * 0.3);
+            if (riverDist < 8) h = Math.min(h, -1 - Math.cos(riverDist / 8 * Math.PI) * 2);
+            return h;
+        }
+        for (let i = 0; i < 30; i++) {
+            const x = (Math.random() - 0.5) * 100, z = (Math.random() - 0.5) * 100;
+            if (Math.abs(x + z * 0.3) > 10) createTree(x, z);
+        }
+
+        // Torii gate
+        function createTorii(x, z) {
+            const g = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color: 0xcc3333 });
+            const pillar1 = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.35, 6, 8), mat);
+            pillar1.position.set(-2.5, 3, 0); pillar1.castShadow = true; g.add(pillar1);
+            const pillar2 = pillar1.clone(); pillar2.position.x = 2.5; g.add(pillar2);
+            const beam1 = new THREE.Mesh(new THREE.BoxGeometry(7, 0.4, 0.5), mat);
+            beam1.position.y = 5.5; beam1.castShadow = true; g.add(beam1);
+            const beam2 = new THREE.Mesh(new THREE.BoxGeometry(6, 0.3, 0.4), mat);
+            beam2.position.y = 4.5; beam2.castShadow = true; g.add(beam2);
+            g.position.set(x, getTerrainHeight(x, z), z);
+            scene.add(g);
+        }
+        createTorii(15, 15);
+
+        // Bridge
+        function createBridge() {
+            const g = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color: 0x8b4513 });
+            const deck = new THREE.Mesh(new THREE.BoxGeometry(8, 0.3, 3), mat);
+            deck.castShadow = true; g.add(deck);
+            for (let i = -3; i <= 3; i++) {
+                const rail = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1, 0.1), mat);
+                rail.position.set(i, 0.5, 1.4); g.add(rail);
+                const rail2 = rail.clone(); rail2.position.z = -1.4; g.add(rail2);
+            }
+            const topRail = new THREE.Mesh(new THREE.BoxGeometry(8, 0.1, 0.15), mat);
+            topRail.position.set(0, 1, 1.4); g.add(topRail);
+            const topRail2 = topRail.clone(); topRail2.position.z = -1.4; g.add(topRail2);
+            g.position.set(-5, 0, 0);
+            g.rotation.y = Math.PI * 0.15;
+            scene.add(g);
+        }
+        createBridge();
+
+        // Animals
+        const animals = [];
+        const animalColors = { deer: '#d4a574', rabbit: '#f5f5dc', fox: '#ff7f50', crane: '#ffffff', tanuki: '#8b7355' };
+        const animalBubbleColors = { deer: '#ffcc80', rabbit: '#c8e6c9', fox: '#ffab91', crane: '#b3e5fc', tanuki: '#d7ccc8' };
+        const states = ['idle', 'walking', 'talking', 'sleeping', 'eating'];
+        const dialogues = {
+            deer: ['🌸 What a nice day!', '🍃 The grass is fresh', '💭 I sense something...'],
+            rabbit: ['🥕 Found a carrot!', '👀 Stay alert!', '💤 So sleepy...'],
+            fox: ['🦊 Hunting time', '🌙 Night is coming', '🎵 La la la~'],
+            crane: ['🐟 Fish spotted!', '✨ Elegant as always', '🌊 Nice river'],
+            tanuki: ['🍵 Time for tea', '🎭 Shapeshifting!', '🌰 Acorn season']
+        };
+
+        class Animal {
+            constructor(type, x, z) {
+                this.type = type;
+                this.state = 'idle';
+                this.stateTimer = Math.random() * 5;
+                this.target = null;
+                this.speed = 0.02 + Math.random() * 0.02;
+                this.color = animalColors[type];
+                this.bubbleColor = animalBubbleColors[type];
+                this.bubble = null;
+                this.bubbleTimer = 0;
+                const g = new THREE.Group();
+                const bodyColor = new THREE.Color(this.color);
+                const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.4, type === 'crane' ? 1 : 0.6, 4, 8), new THREE.MeshStandardMaterial({ color: bodyColor }));
+                body.rotation.x = type === 'crane' ? 0 : Math.PI / 2;
+                body.position.y = type === 'crane' ? 1.2 : 0.5;
+                body.castShadow = true;
+                g.add(body);
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 8), new THREE.MeshStandardMaterial({ color: bodyColor }));
+                head.position.set(type === 'crane' ? 0 : 0.5, type === 'crane' ? 2 : 0.7, 0);
+                head.castShadow = true;
+                g.add(head);
+                if (type === 'deer') {
+                    const antler1 = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.5, 4), new THREE.MeshStandardMaterial({ color: 0x4a3728 }));
+                    antler1.position.set(0.6, 1, 0.15); antler1.rotation.z = -0.3; g.add(antler1);
+                    const antler2 = antler1.clone(); antler2.position.z = -0.15; antler2.rotation.z = -0.3; g.add(antler2);
+                }
+                if (type === 'rabbit') {
+                    const ear1 = new THREE.Mesh(new THREE.CapsuleGeometry(0.08, 0.4, 4, 8), new THREE.MeshStandardMaterial({ color: bodyColor }));
+                    ear1.position.set(0.55, 1, 0.1); ear1.rotation.z = -0.2; g.add(ear1);
+                    const ear2 = ear1.clone(); ear2.position.z = -0.1; g.add(ear2);
+                }
+                if (type === 'fox') {
+                    const tail = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.8, 8), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+                    tail.position.set(-0.6, 0.4, 0); tail.rotation.z = Math.PI / 2 + 0.5; g.add(tail);
+                }
+                if (type === 'crane') {
+                    const beak = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.4, 4), new THREE.MeshStandardMaterial({ color: 0xffa500 }));
+                    beak.position.set(0.3, 2, 0); beak.rotation.z = -Math.PI / 2; g.add(beak);
+                    const leg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.8, 4), new THREE.MeshStandardMaterial({ color: 0x333333 }));
+                    leg1.position.set(0, 0.4, 0.1); g.add(leg1);
+                    const leg2 = leg1.clone(); leg2.position.z = -0.1; g.add(leg2);
+                }
+                this.mesh = g;
+                const h = getTerrainHeight(x, z);
+                this.mesh.position.set(x, h, z);
+                this.mesh.userData.animal = this;
+                scene.add(this.mesh);
+                animals.push(this);
+            }
+            update(dt) {
+                this.stateTimer -= dt;
+                if (this.stateTimer <= 0) {
+                    this.changeState();
+                }
+                if (this.state === 'walking' && this.target) {
+                    const dir = new THREE.Vector3().subVectors(this.target, this.mesh.position);
+                    dir.y = 0;
+                    if (dir.length() > 0.5) {
+                        dir.normalize();
+                        this.mesh.position.x += dir.x * this.speed;
+                        this.mesh.position.z += dir.z * this.speed;
+                        this.mesh.position.y = getTerrainHeight(this.mesh.position.x, this.mesh.position.z);
+                        this.mesh.lookAt(this.target.x, this.mesh.position.y, this.target.z);
+                        this.mesh.children[0].rotation.z = Math.sin(Date.now() * 0.01) * 0.1;
+                    } else {
+                        this.target = null;
+                        this.state = 'idle';
+                        this.stateTimer = 1 + Math.random() * 3;
+                    }
+                }
+                if (this.state === 'sleeping') {
+                    this.mesh.rotation.z = Math.PI / 2 * 0.3;
+                } else {
+                    this.mesh.rotation.z = 0;
+                }
+                if (this.bubbleTimer > 0) {
+                    this.bubbleTimer -= dt;
+                    if (this.bubbleTimer <= 0) this.removeBubble();
+                }
+            }
+            changeState() {
+                const prev = this.state;
+                this.state = states[Math.floor(Math.random() * states.length)];
+                this.stateTimer = 3 + Math.random() * 5;
+                if (this.state === 'walking') {
+                    const angle = Math.random() * Math.PI * 2;
+                    const dist = 5 + Math.random() * 15;
+                    let tx = this.mesh.position.x + Math.cos(angle) * dist;
+                    let tz = this.mesh.position.z + Math.sin(angle) * dist;
+                    tx = Math.max(-50, Math.min(50, tx));
+                    tz = Math.max(-50, Math.min(50, tz));
+                    if (Math.abs(tx + tz * 0.3) < 10) { tx += 15; tz += 15; }
+                    this.target = new THREE.Vector3(tx, 0, tz);
+                }
+                if (this.state === 'talking') {
+                    const nearby = animals.filter(a => a !== this && a.mesh.position.distanceTo(this.mesh.position) < 10);
+                    if (nearby.length > 0) {
+                        const partner = nearby[Math.floor(Math.random() * nearby.length)];
+                        this.showBubble(dialogues[this.type][Math.floor(Math.random() * dialogues[this.type].length)]);
+                        setTimeout(() => partner.showBubble(dialogues[partner.type][Math.floor(Math.random() * dialogues[partner.type].length)]), 1000);
+                    } else {
+                        this.state = 'idle';
+                    }
+                }
+                if (this.state === 'sleeping') {
+                    this.showBubble('💤 Zzz...');
+                }
+                if (this.state === 'eating') {
+                    this.showBubble(this.type === 'crane' ? '🐟 Yum!' : '🌿 Tasty!');
+                }
+            }
+            showBubble(text) {
+                this.removeBubble();
+                const div = document.createElement('div');
+                div.className = 'speech-bubble';
+                div.textContent = text;
+                div.style.background = this.bubbleColor;
+                div.style.borderTopColor = this.bubbleColor;
+                document.body.appendChild(div);
+                this.bubble = div;
+                this.bubbleTimer = 3;
+            }
+            removeBubble() {
+                if (this.bubble) {
+                    this.bubble.remove();
+                    this.bubble = null;
+                }
+            }
+            updateBubblePosition(camera) {
+                if (this.bubble) {
+                    const pos = this.mesh.position.clone();
+                    pos.y += 2;
+                    pos.project(camera);
+                    const x = (pos.x * 0.5 + 0.5) * innerWidth;
+                    const y = (-(pos.y * 0.5) + 0.5) * innerHeight;
+                    this.bubble.style.left = x + 'px';
+                    this.bubble.style.top = y + 'px';
+                    this.bubble.style.display = pos.z < 1 ? 'block' : 'none';
+                }
+            }
+        }
+
+        // Spawn animals
+        ['deer', 'deer', 'rabbit', 'rabbit', 'rabbit', 'fox', 'crane', 'crane', 'tanuki'].forEach(type => {
+            let x, z;
+            do { x = (Math.random() - 0.5) * 80; z = (Math.random() - 0.5) * 80; } while (Math.abs(x + z * 0.3) < 12);
+            new Animal(type, x, z);
+        });
+
+        // Weather
+        let currentWeather = 'clear';
+        const rainDrops = [];
+        const rainGeo = new THREE.BufferGeometry();
+        const rainPositions = new Float32Array(3000);
+        for (let i = 0; i < 1000; i++) {
+            rainPositions[i * 3] = (Math.random() - 0.5) * 100;
+            rainPositions[i * 3 + 1] = Math.random() * 50;
+            rainPositions[i * 3 + 2] = (Math.random() - 0.5) * 100;
+        }
+        rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
+        const rainMat = new THREE.PointsMaterial({ color: 0xaaaaff, size: 0.2, transparent: true, opacity: 0 });
+        const rain = new THREE.Points(rainGeo, rainMat);
+        scene.add(rain);
+
+        let fogDensity = 0;
+        function updateWeather(dt) {
+            const targetRain = currentWeather === 'rain' ? 0.6 : 0;
+            rainMat.opacity += (targetRain - rainMat.opacity) * dt;
+            if (rainMat.opacity > 0.01) {
+                const positions = rainGeo.attributes.position.array;
+                for (let i = 0; i < 1000; i++) {
+                    positions[i * 3 + 1] -= 0.5;
+                    if (positions[i * 3 + 1] < 0) {
+                        positions[i * 3 + 1] = 50;
+                        positions[i * 3] = (Math.random() - 0.5) * 100;
+                        positions[i * 3 + 2] = (Math.random() - 0.5) * 100;
+                    }
+                }
+                rainGeo.attributes.position.needsUpdate = true;
+            }
+            const targetFog = currentWeather === 'fog' ? 0.02 : 0;
+            fogDensity += (targetFog - fogDensity) * dt * 0.5;
+            if (scene.fog) scene.fog.near = 50 - fogDensity * 2000;
+            skyUniforms.turbidity.value = currentWeather === 'cloudy' || currentWeather === 'rain' ? 15 : 10;
+            skyUniforms.rayleigh.value = currentWeather === 'cloudy' || currentWeather === 'rain' ? 0.5 : 2;
+        }
+
+        // First person view
+        let fpMode = false;
+        let fpAnimal = null;
+        const fpOffset = new THREE.Vector3(0, 1.5, 0);
+
+        function enterFirstPerson(animal) {
+            fpMode = true;
+            fpAnimal = animal;
+            controls.enabled = false;
+            document.getElementById('fp-indicator').style.display = 'block';
+        }
+        function exitFirstPerson() {
+            fpMode = false;
+            fpAnimal = null;
+            controls.enabled = true;
+            camera.position.set(40, 35, 40);
+            camera.lookAt(0, 0, 0);
+            document.getElementById('fp-indicator').style.display = 'none';
+        }
+
+        // Raycaster for clicking
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        renderer.domElement.addEventListener('dblclick', e => {
+            mouse.x = (e.clientX / innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const meshes = animals.map(a => a.mesh);
+            const intersects = raycaster.intersectObjects(meshes, true);
+            if (intersects.length > 0) {
+                let obj = intersects[0].object;
+                while (obj.parent && !obj.userData.animal) obj = obj.parent;
+                if (obj.userData.animal) enterFirstPerson(obj.userData.animal);
+            }
+        });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape' && fpMode) exitFirstPerson(); });
+
+        // UI
+        document.getElementById('weather-select').addEventListener('change', e => { currentWeather = e.target.value; });
+        document.getElementById('tilt-btn').addEventListener('click', e => {
+            bokehPass.enabled = !bokehPass.enabled;
+            e.target.textContent = 'Tilt-Shift: ' + (bokehPass.enabled ? 'ON' : 'OFF');
+            e.target.classList.toggle('active', bokehPass.enabled);
+        });
+        document.getElementById('reset-cam').addEventListener('click', () => { if (!fpMode) { camera.position.set(40, 35, 40); controls.target.set(0, 0, 0); } });
+
+        // Animation loop
+        const clock = new THREE.Clock();
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = Math.min(clock.getDelta(), 0.1);
+            gameTime += dt * timeSpeed;
+            if (gameTime >= 24) gameTime -= 24;
+            document.getElementById('time-display').textContent = String(Math.floor(gameTime)).padStart(2, '0') + ':' + String(Math.floor((gameTime % 1) * 60)).padStart(2, '0');
+            updateSun();
+            updateWeather(dt);
+            water.material.uniforms.time.value += dt;
+            water.material.uniforms.sunDirection.value.copy(sun).normalize();
+            animals.forEach(a => {
+                a.update(dt);
+                a.updateBubblePosition(camera);
+            });
+            if (fpMode && fpAnimal) {
+                const pos = fpAnimal.mesh.position.clone().add(fpOffset);
+                camera.position.lerp(pos, 0.1);
+                const lookDir = new THREE.Vector3(0, 0, 1).applyQuaternion(fpAnimal.mesh.quaternion);
+                camera.lookAt(pos.clone().add(lookDir.multiplyScalar(5)).setY(pos.y));
+            }
+            controls.update();
+            composer.render();
+        }
+
+        document.getElementById('loading').style.display = 'none';
+        animate();
+        addEventListener('resize', () => {
+            camera.aspect = innerWidth / innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(innerWidth, innerHeight);
+            composer.setSize(innerWidth, innerHeight);
+        });
+    </script>
+</body>
+
+</html>

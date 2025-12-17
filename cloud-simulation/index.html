@@ -1,0 +1,1459 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cloud Simulation</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg0: #050812;
+        --bg1: #070d1c;
+        --panel: rgba(10, 18, 30, 0.58);
+        --panel-border: rgba(160, 210, 255, 0.18);
+        --text: rgba(240, 248, 255, 0.92);
+        --muted: rgba(240, 248, 255, 0.68);
+        --accent: rgba(120, 210, 255, 0.95);
+        --shadow: rgba(0, 0, 0, 0.35);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: radial-gradient(1100px 850px at 70% 15%, rgba(110, 160, 230, 0.14), transparent 62%),
+          linear-gradient(180deg, var(--bg1), var(--bg0));
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji",
+          "Segoe UI Emoji";
+      }
+
+      #gl {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      .hud {
+        position: fixed;
+        left: 18px;
+        bottom: 18px;
+        width: min(440px, calc(100vw - 36px));
+        padding: 16px 16px 14px;
+        border-radius: 16px;
+        border: 1px solid var(--panel-border);
+        background: var(--panel);
+        box-shadow: 0 18px 55px var(--shadow);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        user-select: none;
+      }
+
+      .title {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 10px;
+      }
+
+      .title h1 {
+        margin: 0;
+        font-size: 16px;
+        letter-spacing: 0.3px;
+        font-weight: 650;
+        color: var(--text);
+      }
+
+      .badge {
+        font-size: 11px;
+        padding: 5px 9px;
+        border-radius: 999px;
+        border: 1px solid rgba(140, 220, 255, 0.22);
+        color: rgba(210, 245, 255, 0.86);
+        background: rgba(10, 20, 35, 0.35);
+      }
+
+      .subtitle {
+        margin: 0 0 14px;
+        font-size: 12px;
+        line-height: 1.35;
+        color: var(--muted);
+      }
+
+      .controls {
+        display: grid;
+        gap: 11px;
+      }
+
+      .control {
+        display: grid;
+        gap: 6px;
+      }
+
+      label {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 12px;
+        color: rgba(240, 248, 255, 0.86);
+        font-size: 12px;
+      }
+
+      .value {
+        color: rgba(240, 248, 255, 0.75);
+        font-variant-numeric: tabular-nums;
+      }
+
+      input[type="range"] {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 100%;
+        height: 10px;
+        border-radius: 999px;
+        background: rgba(150, 200, 255, 0.12);
+        outline: none;
+        border: 1px solid rgba(160, 210, 255, 0.16);
+      }
+
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 18px;
+        height: 18px;
+        border-radius: 999px;
+        background: rgba(170, 235, 255, 0.92);
+        border: 1px solid rgba(50, 80, 120, 0.55);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+        cursor: pointer;
+      }
+
+      input[type="range"]::-moz-range-thumb {
+        width: 18px;
+        height: 18px;
+        border-radius: 999px;
+        background: rgba(170, 235, 255, 0.92);
+        border: 1px solid rgba(50, 80, 120, 0.55);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+        cursor: pointer;
+      }
+
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 12px;
+        flex-wrap: wrap;
+      }
+
+      button {
+        appearance: none;
+        border: 1px solid rgba(160, 210, 255, 0.18);
+        background: rgba(10, 20, 35, 0.35);
+        color: rgba(240, 248, 255, 0.88);
+        padding: 9px 11px;
+        border-radius: 12px;
+        cursor: pointer;
+        font-size: 12px;
+        letter-spacing: 0.2px;
+      }
+
+      button:hover {
+        border-color: rgba(180, 235, 255, 0.3);
+      }
+
+      .toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: rgba(240, 248, 255, 0.86);
+        padding: 8px 10px;
+        border-radius: 12px;
+        border: 1px solid rgba(160, 210, 255, 0.18);
+        background: rgba(10, 20, 35, 0.25);
+      }
+
+      .toggle input {
+        transform: translateY(1px);
+      }
+
+      .hint {
+        margin: 10px 0 0;
+        font-size: 11px;
+        line-height: 1.35;
+        color: rgba(240, 248, 255, 0.64);
+      }
+
+      .error {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+
+      .error-card {
+        width: min(560px, calc(100vw - 40px));
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(10, 16, 28, 0.75);
+        box-shadow: 0 28px 80px rgba(0, 0, 0, 0.5);
+        padding: 18px 18px 16px;
+        color: rgba(240, 248, 255, 0.9);
+        backdrop-filter: blur(14px);
+      }
+
+      .error-card h2 {
+        margin: 0 0 8px;
+        font-size: 16px;
+        letter-spacing: 0.2px;
+      }
+
+      .error-card p {
+        margin: 0;
+        font-size: 13px;
+        color: rgba(240, 248, 255, 0.76);
+        line-height: 1.45;
+      }
+
+      .error-card pre {
+        margin: 12px 0 0;
+        padding: 12px 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(160, 210, 255, 0.16);
+        background: rgba(10, 18, 30, 0.35);
+        color: rgba(240, 248, 255, 0.78);
+        font-size: 11px;
+        line-height: 1.35;
+        overflow: auto;
+        max-height: 40vh;
+        white-space: pre-wrap;
+        word-break: break-word;
+        user-select: text;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="gl"></canvas>
+
+    <div class="hud" id="hud">
+      <div class="title">
+        <h1>Cloud Simulation</h1>
+        <span class="badge" id="badge">Initializing…</span>
+      </div>
+      <p class="subtitle">
+        Volumetric 3D clouds (raymarch + lighting) with wind-driven motion. Left-drag steers the sun; enable “Fly” to move.
+      </p>
+
+      <div class="controls">
+        <div class="control">
+          <label for="quality"><span>Quality</span><span class="value" data-value="quality"></span></label>
+          <input id="quality" type="range" min="0.5" max="2" step="0.05" value="1" />
+        </div>
+
+        <div class="control">
+          <label for="windSpeed"><span>Wind speed</span><span class="value" data-value="windSpeed"></span></label>
+          <input id="windSpeed" type="range" min="0" max="1" step="0.001" value="0.28" />
+        </div>
+
+        <div class="control">
+          <label for="windDir"><span>Wind direction</span><span class="value" data-value="windDir"></span></label>
+          <input id="windDir" type="range" min="-180" max="180" step="1" value="10" />
+        </div>
+
+        <div class="control">
+          <label for="scale"><span>Cloud scale</span><span class="value" data-value="scale"></span></label>
+          <input id="scale" type="range" min="0.8" max="4.2" step="0.01" value="2.1" />
+        </div>
+
+        <div class="control">
+          <label for="coverage"><span>Coverage</span><span class="value" data-value="coverage"></span></label>
+          <input id="coverage" type="range" min="0" max="1" step="0.001" value="0.58" />
+        </div>
+
+        <div class="control">
+          <label for="softness"><span>Softness</span><span class="value" data-value="softness"></span></label>
+          <input id="softness" type="range" min="0.02" max="0.32" step="0.001" value="0.12" />
+        </div>
+
+        <div class="control">
+          <label for="detail"><span>Detail</span><span class="value" data-value="detail"></span></label>
+          <input id="detail" type="range" min="0" max="1" step="0.001" value="0.72" />
+        </div>
+
+        <div class="control">
+          <label for="turbulence"><span>Turbulence</span><span class="value" data-value="turbulence"></span></label>
+          <input id="turbulence" type="range" min="0" max="1" step="0.001" value="0.35" />
+        </div>
+
+        <div class="control">
+          <label for="sunAngle"><span>Sun angle</span><span class="value" data-value="sunAngle"></span></label>
+          <input id="sunAngle" type="range" min="-180" max="180" step="1" value="25" />
+        </div>
+
+        <div class="control">
+          <label for="sunPower"><span>Sun intensity</span><span class="value" data-value="sunPower"></span></label>
+          <input id="sunPower" type="range" min="0" max="2" step="0.001" value="1.05" />
+        </div>
+
+        <div class="control">
+          <label for="cameraSpeed"><span>Camera speed</span><span class="value" data-value="cameraSpeed"></span></label>
+          <input id="cameraSpeed" type="range" min="0.5" max="25" step="0.1" value="7.5" />
+        </div>
+      </div>
+
+      <div class="row">
+        <button id="randomize" type="button">Randomize</button>
+        <button id="reset" type="button">Reset</button>
+        <button id="resetCamera" type="button">Reset camera</button>
+        <label class="toggle" title="Pause / resume animation">
+          <input id="animate" type="checkbox" checked />
+          Animate
+        </label>
+        <label class="toggle" title="WASD to move, Q/E down/up, right-drag to look">
+          <input id="fly" type="checkbox" />
+          Fly
+        </label>
+        <label class="toggle" title="Higher quality clouds (more steps + 3D noise)">
+          <input id="power" type="checkbox" />
+          Power
+        </label>
+        <label class="toggle" title="Soft volumetric shadows (very expensive)">
+          <input id="softShadows" type="checkbox" />
+          Soft shadows
+        </label>
+      </div>
+
+      <p class="hint">Tip: “Power” and “Soft shadows” need a strong GPU.</p>
+    </div>
+
+    <div class="error" id="error" hidden>
+      <div class="error-card">
+        <h2 id="errorTitle">WebGL not available</h2>
+        <p id="errorMessage">
+          This demo needs WebGL. Try another browser, enable hardware acceleration, or check your browser’s WebGL settings.
+        </p>
+        <pre id="errorDetails" hidden></pre>
+      </div>
+    </div>
+
+    <script>
+      (() => {
+        const canvas = document.getElementById("gl");
+        const badge = document.getElementById("badge");
+        const error = document.getElementById("error");
+        const errorTitle = document.getElementById("errorTitle");
+        const errorMessage = document.getElementById("errorMessage");
+        const errorDetails = document.getElementById("errorDetails");
+
+        function showError(title, message, details) {
+          errorTitle.textContent = title;
+          errorMessage.textContent = message;
+          if (details) {
+            errorDetails.hidden = false;
+            errorDetails.textContent = details;
+          } else {
+            errorDetails.hidden = true;
+            errorDetails.textContent = "";
+          }
+          error.hidden = false;
+          document.getElementById("hud").style.display = "none";
+        }
+
+        const contextAttempts = [];
+        function tryContext(type, attrs) {
+          try {
+            const ctx = attrs ? canvas.getContext(type, attrs) : canvas.getContext(type);
+            contextAttempts.push({ type, attrs: Boolean(attrs), ok: Boolean(ctx), err: "" });
+            return ctx;
+          } catch (e) {
+            contextAttempts.push({ type, attrs: Boolean(attrs), ok: false, err: String(e) });
+            return null;
+          }
+        }
+
+        function contextAttemptDetails() {
+          const lines = [];
+          lines.push(`URL: ${location.href}`);
+          lines.push(`User agent: ${navigator.userAgent}`);
+          lines.push(`Secure context: ${window.isSecureContext ? "yes" : "no"}`);
+          lines.push(`WebGLRenderingContext: ${typeof WebGLRenderingContext === "undefined" ? "missing" : "present"}`);
+          lines.push(`WebGL2RenderingContext: ${typeof WebGL2RenderingContext === "undefined" ? "missing" : "present"}`);
+          lines.push("");
+          lines.push("Context attempts:");
+          for (const a of contextAttempts) {
+            lines.push(`- ${a.type} (${a.attrs ? "attrs" : "no attrs"}): ${a.ok ? "ok" : "null"}${a.err ? ` | ${a.err}` : ""}`);
+          }
+          return lines.join("\n");
+        }
+
+        const attrs = {
+          alpha: false,
+          antialias: false,
+          depth: false,
+          stencil: false,
+          premultipliedAlpha: false,
+          preserveDrawingBuffer: false,
+        };
+
+        const gl =
+          tryContext("webgl2", attrs) ||
+          tryContext("webgl", attrs) ||
+          tryContext("experimental-webgl", attrs) ||
+          tryContext("webgl2") ||
+          tryContext("webgl") ||
+          tryContext("experimental-webgl");
+
+        if (!gl) {
+          showError(
+            "WebGL context creation failed",
+            "If you’re viewing this inside an IDE preview (VS Code Live Preview / WebView), WebGL is often disabled. Open in Chrome/Firefox/Safari, or run a local server (python3 -m http.server).",
+            contextAttemptDetails(),
+          );
+          return;
+        }
+
+        const isWebGL2 = typeof WebGL2RenderingContext !== "undefined" && gl instanceof WebGL2RenderingContext;
+        badge.textContent = isWebGL2 ? "WebGL2" : "WebGL";
+
+        function glInfoDetails() {
+          const lines = [];
+          try {
+            lines.push(`GL_VERSION: ${gl.getParameter(gl.VERSION)}`);
+          } catch {}
+          try {
+            lines.push(`GLSL_VERSION: ${gl.getParameter(gl.SHADING_LANGUAGE_VERSION)}`);
+          } catch {}
+          try {
+            lines.push(`VENDOR: ${gl.getParameter(gl.VENDOR)}`);
+          } catch {}
+          try {
+            lines.push(`RENDERER: ${gl.getParameter(gl.RENDERER)}`);
+          } catch {}
+          try {
+            const dbg = gl.getExtension("WEBGL_debug_renderer_info");
+            if (dbg) {
+              lines.push(`UNMASKED_VENDOR: ${gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL)}`);
+              lines.push(`UNMASKED_RENDERER: ${gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)}`);
+            }
+          } catch {}
+          return lines.join("\n");
+        }
+
+        function compileShader(type, source) {
+          const shader = gl.createShader(type);
+          gl.shaderSource(shader, source);
+          gl.compileShader(shader);
+          if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            const info = gl.getShaderInfoLog(shader) || "Shader compile error";
+            gl.deleteShader(shader);
+            throw new Error(info);
+          }
+          return shader;
+        }
+
+        function createProgram(vsSource, fsSource) {
+          const program = gl.createProgram();
+          const vs = compileShader(gl.VERTEX_SHADER, vsSource);
+          const fs = compileShader(gl.FRAGMENT_SHADER, fsSource);
+          gl.attachShader(program, vs);
+          gl.attachShader(program, fs);
+          gl.linkProgram(program);
+          gl.deleteShader(vs);
+          gl.deleteShader(fs);
+          if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+            const info = gl.getProgramInfoLog(program) || "Program link error";
+            gl.deleteProgram(program);
+            throw new Error(info);
+          }
+          return program;
+        }
+
+        const vsSource = isWebGL2
+          ? `#version 300 es
+            precision highp float;
+            in vec2 a_pos;
+            out vec2 v_uv;
+            void main() {
+              v_uv = a_pos * 0.5 + 0.5;
+              gl_Position = vec4(a_pos, 0.0, 1.0);
+            }`
+          : `
+            precision highp float;
+            attribute vec2 a_pos;
+            varying vec2 v_uv;
+            void main() {
+              v_uv = a_pos * 0.5 + 0.5;
+              gl_Position = vec4(a_pos, 0.0, 1.0);
+            }`;
+
+	        const fsSource = isWebGL2
+	          ? `#version 300 es
+	            #ifdef GL_FRAGMENT_PRECISION_HIGH
+	            precision highp float;
+	            #else
+	            precision mediump float;
+	            #endif
+
+	            in vec2 v_uv;
+	            out vec4 outColor;
+
+	            uniform vec2 u_resolution;
+	            uniform float u_time;
+	            uniform float u_seed;
+	            uniform vec2 u_wind;
+	            uniform float u_scale;
+	            uniform float u_coverage;
+	            uniform float u_softness;
+	            uniform float u_detail;
+		            uniform float u_turbulence;
+		            uniform float u_sunAngle;
+		            uniform float u_sunPower;
+			            uniform float u_steps;
+			            uniform vec3 u_camPos;
+			            uniform vec2 u_camYawPitch;
+			            uniform float u_hq;
+			            uniform float u_softShadows;
+
+	            float saturate(float x) { return clamp(x, 0.0, 1.0); }
+
+	            float hash21(vec2 p) {
+	              p = fract(p * vec2(123.34, 456.21));
+	              p += dot(p, p + 45.32);
+	              return fract(p.x * p.y);
+	            }
+
+	            float noise(vec2 p) {
+	              vec2 i = floor(p);
+	              vec2 f = fract(p);
+	              float a = hash21(i);
+	              float b = hash21(i + vec2(1.0, 0.0));
+	              float c = hash21(i + vec2(0.0, 1.0));
+	              float d = hash21(i + vec2(1.0, 1.0));
+	              vec2 u = f * f * (3.0 - 2.0 * f);
+	              return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+	            }
+
+		            float fbm(vec2 p) {
+		              float v = 0.0;
+		              float a = 0.5;
+		              for (int i = 0; i < 3; i++) {
+		                v += a * noise(p);
+		                p = p * 2.02 + vec2(17.0, 29.0);
+		                a *= 0.5;
+		              }
+		              return v;
+		            }
+
+		            float hash31(vec3 p) {
+		              p = fract(p * vec3(103.1, 113.69, 137.87));
+		              p += dot(p, p.yzx + 19.19);
+		              return fract((p.x + p.y) * p.z);
+		            }
+
+		            float noise3(vec3 p) {
+		              vec3 i = floor(p);
+		              vec3 f = fract(p);
+		              vec3 u = f * f * (3.0 - 2.0 * f);
+
+		              float n000 = hash31(i + vec3(0.0, 0.0, 0.0));
+		              float n100 = hash31(i + vec3(1.0, 0.0, 0.0));
+		              float n010 = hash31(i + vec3(0.0, 1.0, 0.0));
+		              float n110 = hash31(i + vec3(1.0, 1.0, 0.0));
+		              float n001 = hash31(i + vec3(0.0, 0.0, 1.0));
+		              float n101 = hash31(i + vec3(1.0, 0.0, 1.0));
+		              float n011 = hash31(i + vec3(0.0, 1.0, 1.0));
+		              float n111 = hash31(i + vec3(1.0, 1.0, 1.0));
+
+		              float nx00 = mix(n000, n100, u.x);
+		              float nx10 = mix(n010, n110, u.x);
+		              float nx01 = mix(n001, n101, u.x);
+		              float nx11 = mix(n011, n111, u.x);
+		              float nxy0 = mix(nx00, nx10, u.y);
+		              float nxy1 = mix(nx01, nx11, u.y);
+		              return mix(nxy0, nxy1, u.z);
+		            }
+
+		            float fbm3(vec3 p) {
+		              float v = 0.0;
+		              float a = 0.5;
+		              for (int i = 0; i < 4; i++) {
+		                v += a * noise3(p);
+		                p = p * 2.02 + vec3(17.0, 29.0, 11.0);
+		                a *= 0.5;
+		              }
+		              return v;
+		            }
+
+		            float cloudHeightMask(float y, float yLow, float yHigh) {
+		              float h = saturate((y - yLow) / (yHigh - yLow));
+		              float bottom = smoothstep(0.0, 0.20, h);
+	              float top = smoothstep(1.0, 0.62, h);
+	              return bottom * top;
+	            }
+
+		            float cloudDensity(vec3 p, float yLow, float yHigh) {
+		              float heightMask = cloudHeightMask(p.y, yLow, yHigh);
+		              if (heightMask <= 0.0) return 0.0;
+
+		              vec3 q = p;
+		              q.xz += u_wind * u_time;
+		              q += vec3(u_seed * 97.13);
+
+		              vec3 qq = q;
+		              qq.xz *= u_scale;
+		              qq.y *= 0.45 * u_scale;
+
+		              float n = 0.0;
+		              if (u_hq > 0.5) {
+		                vec3 coord3 = vec3(qq.x, qq.y, qq.z);
+		                if (u_turbulence > 0.001) {
+		                  float warp = noise3(coord3 * 0.55 + vec3(13.1, 7.1, 5.9));
+		                  coord3 += (warp - 0.5) * (0.85 * u_turbulence);
+		                }
+		                float shape = fbm3(coord3);
+		                float fine = 1.0;
+		                if (u_detail > 0.001) {
+		                  fine = noise3(coord3 * 3.2 + vec3(7.2, 11.3, 4.7));
+		                }
+		                n = shape * mix(1.0, fine, u_detail);
+		              } else {
+		                vec2 coord = qq.xz + qq.y * vec2(0.65, -0.5);
+		                if (u_turbulence > 0.001) {
+		                  float warp = noise(coord * 0.55 + 13.1);
+		                  coord += (warp - 0.5) * (0.95 * u_turbulence);
+		                }
+
+		                float shape = fbm(coord);
+		                float fine = 1.0;
+		                if (u_detail > 0.001) {
+		                  fine = noise(coord * 3.2 + 7.2);
+		                }
+		                n = shape * mix(1.0, fine, u_detail);
+		              }
+
+	              float threshold = mix(0.72, 0.34, u_coverage);
+	              float soft = max(0.001, u_softness * 0.85);
+	              float d = smoothstep(threshold, threshold + soft, n);
+	              d *= heightMask;
+	              d = pow(d, 1.2);
+	              return d;
+	            }
+
+	            void main() {
+	              float aspect = u_resolution.x / u_resolution.y;
+	              vec2 uv = v_uv;
+
+	              float ang = radians(u_sunAngle);
+	              vec2 sun2 = normalize(vec2(cos(ang), sin(ang) * 0.65 + 0.35));
+	              vec3 sunDir = normalize(vec3(sun2.x, sun2.y, 0.75));
+
+	              vec3 skyTop = vec3(0.06, 0.10, 0.18);
+	              vec3 skyBot = vec3(0.34, 0.47, 0.62);
+	              float skyGrad = smoothstep(0.0, 1.0, uv.y);
+	              vec3 sky = mix(skyBot, skyTop, skyGrad);
+
+	              vec2 sunPos = vec2(0.5 + 0.34 * cos(ang), 0.72 + 0.16 * sin(ang));
+	              float sunDist = length((uv - sunPos) * vec2(aspect, 1.0));
+	              float sunGlow = exp(-sunDist * sunDist * 36.0) * u_sunPower;
+	              vec3 sunCol = vec3(1.0, 0.86, 0.68);
+	              sky += sunCol * sunGlow * 0.85;
+
+	              float haze = pow(1.0 - uv.y, 3.6);
+	              sky = mix(sky, vec3(0.78, 0.86, 0.92), haze * 0.18);
+
+		              vec2 ndc = uv * 2.0 - 1.0;
+		              float fov = radians(55.0);
+		              float yaw = u_camYawPitch.x;
+		              float pitch = u_camYawPitch.y;
+		              vec3 forward = normalize(vec3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch)));
+		              vec3 right = normalize(cross(vec3(0.0, 1.0, 0.0), forward));
+		              vec3 up = cross(forward, right);
+		              vec3 ro = u_camPos;
+		              vec3 rd = normalize(
+		                right * (ndc.x * aspect * tan(fov * 0.5)) + up * (ndc.y * tan(fov * 0.5)) + forward
+		              );
+
+	              float yLow = 0.25;
+	              float yHigh = 1.15;
+	              float maxDist = 120.0;
+
+	              float tEnter = 0.0;
+	              float tExit = maxDist;
+	              if (abs(rd.y) < 1e-4) {
+	                if (ro.y < yLow || ro.y > yHigh) {
+	                  outColor = vec4(sky, 1.0);
+	                  return;
+	                }
+	              } else {
+	                float t0 = (yLow - ro.y) / rd.y;
+	                float t1 = (yHigh - ro.y) / rd.y;
+	                tEnter = max(min(t0, t1), 0.0);
+	                tExit = min(max(t0, t1), maxDist);
+	              }
+
+	              if (tExit <= tEnter) {
+	                outColor = vec4(sky, 1.0);
+	                return;
+	              }
+
+		              const int MAX_STEPS = 128;
+		              int steps = int(clamp(u_steps, 8.0, float(MAX_STEPS)));
+	              float dt = (tExit - tEnter) / float(steps);
+	              float jitter = hash21(gl_FragCoord.xy + u_time * 60.0 + u_seed * 100.0);
+	              float t = tEnter + dt * jitter;
+
+	              vec3 cloudBase = vec3(0.94, 0.96, 1.0);
+	              vec3 cloudShadow = vec3(0.60, 0.64, 0.73);
+	              float sigma = 1.75;
+	              float mu = dot(rd, sunDir);
+	              float phase = 0.55 + 0.45 * pow(max(mu, 0.0), 4.0);
+
+	              vec3 accum = vec3(0.0);
+	              float trans = 1.0;
+
+	              for (int i = 0; i < MAX_STEPS; i++) {
+	                if (i >= steps) break;
+	                vec3 pos = ro + rd * t;
+	                float d = cloudDensity(pos, yLow, yHigh);
+		                if (d > 0.001) {
+		                  float h = saturate((pos.y - yLow) / (yHigh - yLow));
+		                  float heightLight = smoothstep(0.0, 1.0, h);
+		                  float ambient = mix(0.20, 0.36, heightLight);
+		                  float shadow = 1.0;
+		                  if (u_softShadows > 0.5) {
+		                    const int SHADOW_STEPS = 8;
+		                    vec3 sp = pos + sunDir * 1.2;
+		                    float s = 0.0;
+		                    float sStep = 2.6;
+		                    for (int j = 0; j < SHADOW_STEPS; j++) {
+		                      s += cloudDensity(sp, yLow, yHigh) * sStep;
+		                      sp += sunDir * sStep;
+		                    }
+		                    shadow = clamp(exp(-s * 0.35), 0.05, 1.0);
+		                  }
+		                  float direct = u_sunPower * shadow * phase * mix(0.20, 1.0, heightLight);
+		                  vec3 albedo = mix(cloudShadow, cloudBase, 0.35 + 0.65 * heightLight);
+		                  vec3 sampleCol = albedo * (ambient + direct);
+	                  sampleCol = mix(sampleCol, sunCol, direct * 0.08);
+	                  sampleCol = mix(sampleCol, sky, smoothstep(0.0, 1.0, t / maxDist) * 0.12);
+
+	                  float a = 1.0 - exp(-d * sigma * dt);
+	                  a = clamp(a, 0.0, 1.0);
+	                  accum += sampleCol * a * trans;
+	                  trans *= (1.0 - a);
+	                  if (trans < 0.02) break;
+	                }
+	                t += dt;
+	              }
+
+	              vec3 color = accum + sky * trans;
+	              float grain = hash21(gl_FragCoord.xy + u_time * 60.0 + u_seed * 100.0);
+	              color += (grain - 0.5) * 0.01;
+	              color = clamp(color, 0.0, 1.0);
+
+	              outColor = vec4(color, 1.0);
+	            }`
+	          : `
+	            #ifdef GL_FRAGMENT_PRECISION_HIGH
+	            precision highp float;
+	            #else
+            precision mediump float;
+            #endif
+
+            varying vec2 v_uv;
+
+            uniform vec2 u_resolution;
+            uniform float u_time;
+            uniform float u_seed;
+            uniform vec2 u_wind;
+            uniform float u_scale;
+            uniform float u_coverage;
+            uniform float u_softness;
+	            uniform float u_detail;
+	            uniform float u_turbulence;
+	            uniform float u_sunAngle;
+	            uniform float u_sunPower;
+	            uniform float u_steps;
+	            uniform vec3 u_camPos;
+	            uniform vec2 u_camYawPitch;
+	            uniform float u_hq;
+	            uniform float u_softShadows;
+
+	            float saturate(float x) { return clamp(x, 0.0, 1.0); }
+
+	            float hash21(vec2 p) {
+	              p = fract(p * vec2(123.34, 456.21));
+	              p += dot(p, p + 45.32);
+              return fract(p.x * p.y);
+            }
+
+            float noise(vec2 p) {
+              vec2 i = floor(p);
+              vec2 f = fract(p);
+              float a = hash21(i);
+              float b = hash21(i + vec2(1.0, 0.0));
+              float c = hash21(i + vec2(0.0, 1.0));
+              float d = hash21(i + vec2(1.0, 1.0));
+              vec2 u = f * f * (3.0 - 2.0 * f);
+	              return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+	            }
+
+		            float fbm(vec2 p) {
+		              float v = 0.0;
+		              float a = 0.5;
+		              for (int i = 0; i < 3; i++) {
+		                v += a * noise(p);
+		                p = p * 2.02 + vec2(17.0, 29.0);
+		                a *= 0.5;
+		              }
+		              return v;
+		            }
+
+		            float hash31(vec3 p) {
+		              p = fract(p * vec3(103.1, 113.69, 137.87));
+		              p += dot(p, p.yzx + 19.19);
+		              return fract((p.x + p.y) * p.z);
+		            }
+
+		            float noise3(vec3 p) {
+		              vec3 i = floor(p);
+		              vec3 f = fract(p);
+		              vec3 u = f * f * (3.0 - 2.0 * f);
+
+		              float n000 = hash31(i + vec3(0.0, 0.0, 0.0));
+		              float n100 = hash31(i + vec3(1.0, 0.0, 0.0));
+		              float n010 = hash31(i + vec3(0.0, 1.0, 0.0));
+		              float n110 = hash31(i + vec3(1.0, 1.0, 0.0));
+		              float n001 = hash31(i + vec3(0.0, 0.0, 1.0));
+		              float n101 = hash31(i + vec3(1.0, 0.0, 1.0));
+		              float n011 = hash31(i + vec3(0.0, 1.0, 1.0));
+		              float n111 = hash31(i + vec3(1.0, 1.0, 1.0));
+
+		              float nx00 = mix(n000, n100, u.x);
+		              float nx10 = mix(n010, n110, u.x);
+		              float nx01 = mix(n001, n101, u.x);
+		              float nx11 = mix(n011, n111, u.x);
+		              float nxy0 = mix(nx00, nx10, u.y);
+		              float nxy1 = mix(nx01, nx11, u.y);
+		              return mix(nxy0, nxy1, u.z);
+		            }
+
+		            float fbm3(vec3 p) {
+		              float v = 0.0;
+		              float a = 0.5;
+		              for (int i = 0; i < 4; i++) {
+		                v += a * noise3(p);
+		                p = p * 2.02 + vec3(17.0, 29.0, 11.0);
+		                a *= 0.5;
+		              }
+		              return v;
+		            }
+
+		            float cloudHeightMask(float y, float yLow, float yHigh) {
+		              float h = saturate((y - yLow) / (yHigh - yLow));
+		              float bottom = smoothstep(0.0, 0.20, h);
+	              float top = smoothstep(1.0, 0.62, h);
+	              return bottom * top;
+	            }
+
+	            float cloudDensity(vec3 p, float yLow, float yHigh) {
+	              float heightMask = cloudHeightMask(p.y, yLow, yHigh);
+	              if (heightMask <= 0.0) return 0.0;
+
+		              vec3 q = p;
+		              q.xz += u_wind * u_time;
+		              q += vec3(u_seed * 97.13);
+
+		              vec3 qq = q;
+		              qq.xz *= u_scale;
+		              qq.y *= 0.45 * u_scale;
+
+		              float n = 0.0;
+		              if (u_hq > 0.5) {
+		                vec3 coord3 = vec3(qq.x, qq.y, qq.z);
+		                if (u_turbulence > 0.001) {
+		                  float warp = noise3(coord3 * 0.55 + vec3(13.1, 7.1, 5.9));
+		                  coord3 += (warp - 0.5) * (0.85 * u_turbulence);
+		                }
+		                float shape = fbm3(coord3);
+		                float fine = 1.0;
+		                if (u_detail > 0.001) {
+		                  fine = noise3(coord3 * 3.2 + vec3(7.2, 11.3, 4.7));
+		                }
+		                n = shape * mix(1.0, fine, u_detail);
+		              } else {
+		                vec2 coord = qq.xz + qq.y * vec2(0.65, -0.5);
+		                if (u_turbulence > 0.001) {
+		                  float warp = noise(coord * 0.55 + 13.1);
+		                  coord += (warp - 0.5) * (0.95 * u_turbulence);
+		                }
+
+		                float shape = fbm(coord);
+		                float fine = 1.0;
+		                if (u_detail > 0.001) {
+		                  fine = noise(coord * 3.2 + 7.2);
+		                }
+		                n = shape * mix(1.0, fine, u_detail);
+		              }
+
+	              float threshold = mix(0.72, 0.34, u_coverage);
+	              float soft = max(0.001, u_softness * 0.85);
+	              float d = smoothstep(threshold, threshold + soft, n);
+	              d *= heightMask;
+	              d = pow(d, 1.2);
+	              return d;
+	            }
+
+	            void main() {
+	              float aspect = u_resolution.x / u_resolution.y;
+	              vec2 uv = v_uv;
+
+	              float ang = radians(u_sunAngle);
+	              vec2 sun2 = normalize(vec2(cos(ang), sin(ang) * 0.65 + 0.35));
+	              vec3 sunDir = normalize(vec3(sun2.x, sun2.y, 0.75));
+
+	              vec3 skyTop = vec3(0.06, 0.10, 0.18);
+	              vec3 skyBot = vec3(0.34, 0.47, 0.62);
+	              float skyGrad = smoothstep(0.0, 1.0, uv.y);
+	              vec3 sky = mix(skyBot, skyTop, skyGrad);
+
+	              vec2 sunPos = vec2(0.5 + 0.34 * cos(ang), 0.72 + 0.16 * sin(ang));
+	              float sunDist = length((uv - sunPos) * vec2(aspect, 1.0));
+	              float sunGlow = exp(-sunDist * sunDist * 36.0) * u_sunPower;
+	              vec3 sunCol = vec3(1.0, 0.86, 0.68);
+	              sky += sunCol * sunGlow * 0.85;
+
+	              float haze = pow(1.0 - uv.y, 3.6);
+	              sky = mix(sky, vec3(0.78, 0.86, 0.92), haze * 0.18);
+
+		              vec2 ndc = uv * 2.0 - 1.0;
+		              float fov = radians(55.0);
+		              float yaw = u_camYawPitch.x;
+		              float pitch = u_camYawPitch.y;
+		              vec3 forward = normalize(vec3(sin(yaw) * cos(pitch), sin(pitch), cos(yaw) * cos(pitch)));
+		              vec3 right = normalize(cross(vec3(0.0, 1.0, 0.0), forward));
+		              vec3 up = cross(forward, right);
+		              vec3 ro = u_camPos;
+		              vec3 rd = normalize(
+		                right * (ndc.x * aspect * tan(fov * 0.5)) + up * (ndc.y * tan(fov * 0.5)) + forward
+		              );
+
+	              float yLow = 0.25;
+	              float yHigh = 1.15;
+	              float maxDist = 120.0;
+
+	              float tEnter = 0.0;
+	              float tExit = maxDist;
+	              if (abs(rd.y) < 1e-4) {
+	                if (ro.y < yLow || ro.y > yHigh) {
+	                  gl_FragColor = vec4(sky, 1.0);
+	                  return;
+	                }
+	              } else {
+	                float t0 = (yLow - ro.y) / rd.y;
+	                float t1 = (yHigh - ro.y) / rd.y;
+	                tEnter = max(min(t0, t1), 0.0);
+	                tExit = min(max(t0, t1), maxDist);
+	              }
+
+	              if (tExit <= tEnter) {
+	                gl_FragColor = vec4(sky, 1.0);
+	                return;
+	              }
+
+		              const int MAX_STEPS = 96;
+		              int steps = int(clamp(u_steps, 8.0, float(MAX_STEPS)));
+	              float dt = (tExit - tEnter) / float(steps);
+	              float jitter = hash21(gl_FragCoord.xy + u_time * 60.0 + u_seed * 100.0);
+	              float t = tEnter + dt * jitter;
+
+	              vec3 cloudBase = vec3(0.94, 0.96, 1.0);
+	              vec3 cloudShadow = vec3(0.60, 0.64, 0.73);
+	              float sigma = 1.75;
+	              float mu = dot(rd, sunDir);
+	              float phase = 0.55 + 0.45 * pow(max(mu, 0.0), 4.0);
+
+	              vec3 accum = vec3(0.0);
+	              float trans = 1.0;
+
+	              for (int i = 0; i < MAX_STEPS; i++) {
+	                if (i >= steps) break;
+	                vec3 pos = ro + rd * t;
+	                float d = cloudDensity(pos, yLow, yHigh);
+	                if (d > 0.001) {
+	                  float h = saturate((pos.y - yLow) / (yHigh - yLow));
+	                  float heightLight = smoothstep(0.0, 1.0, h);
+		                  float ambient = mix(0.20, 0.36, heightLight);
+		                  float shadow = 1.0;
+		                  if (u_softShadows > 0.5) {
+		                    const int SHADOW_STEPS = 6;
+		                    vec3 sp = pos + sunDir * 1.2;
+		                    float s = 0.0;
+		                    float sStep = 2.8;
+		                    for (int j = 0; j < SHADOW_STEPS; j++) {
+		                      s += cloudDensity(sp, yLow, yHigh) * sStep;
+		                      sp += sunDir * sStep;
+		                    }
+		                    shadow = clamp(exp(-s * 0.35), 0.05, 1.0);
+		                  }
+		                  float direct = u_sunPower * shadow * phase * mix(0.20, 1.0, heightLight);
+	                  vec3 albedo = mix(cloudShadow, cloudBase, 0.35 + 0.65 * heightLight);
+	                  vec3 sampleCol = albedo * (ambient + direct);
+	                  sampleCol = mix(sampleCol, sunCol, direct * 0.08);
+	                  sampleCol = mix(sampleCol, sky, smoothstep(0.0, 1.0, t / maxDist) * 0.12);
+
+	                  float a = 1.0 - exp(-d * sigma * dt);
+	                  a = clamp(a, 0.0, 1.0);
+	                  accum += sampleCol * a * trans;
+	                  trans *= (1.0 - a);
+	                  if (trans < 0.02) break;
+	                }
+	                t += dt;
+	              }
+
+	              vec3 color = accum + sky * trans;
+
+	              float grain = hash21(gl_FragCoord.xy + u_time * 60.0 + u_seed * 100.0);
+	              color += (grain - 0.5) * 0.01;
+	              color = clamp(color, 0.0, 1.0);
+
+	              gl_FragColor = vec4(color, 1.0);
+	            }`;
+
+        let program;
+        try {
+          program = createProgram(vsSource, fsSource);
+        } catch (e) {
+          console.error(e);
+          showError(
+            "Shader compilation failed",
+            "WebGL is available, but the GPU/browser failed to compile the cloud shader. Try another browser, update graphics drivers, or lower OS-level privacy/shield settings that restrict WebGL.",
+            `${glInfoDetails()}\n\n${String(e)}`,
+          );
+          return;
+        }
+
+        const quad = new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]);
+        const vbo = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+        gl.bufferData(gl.ARRAY_BUFFER, quad, gl.STATIC_DRAW);
+
+        gl.useProgram(program);
+
+        const aPos = gl.getAttribLocation(program, "a_pos");
+        gl.enableVertexAttribArray(aPos);
+        gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+		        const uniforms = {
+		          u_resolution: gl.getUniformLocation(program, "u_resolution"),
+		          u_time: gl.getUniformLocation(program, "u_time"),
+		          u_seed: gl.getUniformLocation(program, "u_seed"),
+		          u_wind: gl.getUniformLocation(program, "u_wind"),
+		          u_scale: gl.getUniformLocation(program, "u_scale"),
+		          u_coverage: gl.getUniformLocation(program, "u_coverage"),
+		          u_softness: gl.getUniformLocation(program, "u_softness"),
+		          u_detail: gl.getUniformLocation(program, "u_detail"),
+		          u_turbulence: gl.getUniformLocation(program, "u_turbulence"),
+		          u_sunAngle: gl.getUniformLocation(program, "u_sunAngle"),
+		          u_sunPower: gl.getUniformLocation(program, "u_sunPower"),
+		          u_steps: gl.getUniformLocation(program, "u_steps"),
+		          u_camPos: gl.getUniformLocation(program, "u_camPos"),
+		          u_camYawPitch: gl.getUniformLocation(program, "u_camYawPitch"),
+		          u_hq: gl.getUniformLocation(program, "u_hq"),
+		          u_softShadows: gl.getUniformLocation(program, "u_softShadows"),
+		        };
+
+	        const defaults = {
+	          quality: 1.0,
+	          windSpeed: 0.28,
+	          windDir: 10,
+	          scale: 2.1,
+	          coverage: 0.58,
+	          softness: 0.12,
+	          detail: 0.72,
+	          turbulence: 0.35,
+	          sunAngle: 25,
+	          sunPower: 1.05,
+	          cameraSpeed: 7.5,
+	          fly: false,
+	          power: false,
+	          softShadows: false,
+	          animate: true,
+	          seed: Math.random(),
+	        };
+
+        const state = { ...defaults };
+
+        const valueEls = new Map(
+          Array.from(document.querySelectorAll("[data-value]")).map((el) => [el.getAttribute("data-value"), el]),
+        );
+
+        function formatValue(id, value) {
+          switch (id) {
+            case "quality":
+              return `${value.toFixed(2)}×`;
+            case "windSpeed":
+              return value.toFixed(3);
+            case "windDir":
+            case "sunAngle":
+              return `${Math.round(value)}°`;
+            case "scale":
+              return value.toFixed(2);
+            case "coverage":
+            case "detail":
+            case "turbulence":
+            case "softness":
+              return value.toFixed(3);
+	            case "sunPower":
+	              return value.toFixed(3);
+	            case "cameraSpeed":
+	              return value.toFixed(1);
+	            default:
+	              return String(value);
+	          }
+	        }
+
+        function setControl(id, value) {
+          const el = document.getElementById(id);
+          if (!el) return;
+          if (el.type === "checkbox") {
+            el.checked = Boolean(value);
+          } else {
+            el.value = String(value);
+          }
+          state[id] = el.type === "checkbox" ? el.checked : Number(el.value);
+          const out = valueEls.get(id);
+          if (out) out.textContent = formatValue(id, state[id]);
+        }
+
+	        for (const [k, v] of Object.entries(defaults)) {
+	          if (k === "seed") continue;
+	          setControl(k, v);
+	        }
+
+	        const cameraDefaults = {
+	          x: 0.0,
+	          y: 0.18,
+	          z: -8.0,
+	          yaw: 0.0,
+	          pitch: 0.14,
+	        };
+
+	        const camera = { ...cameraDefaults };
+
+	        function resetCamera() {
+	          Object.assign(camera, cameraDefaults);
+	        }
+
+	        const keys = new Set();
+	        window.addEventListener(
+	          "keydown",
+	          (e) => {
+	            if (!state.fly) return;
+	            if (e.code === "KeyR") resetCamera();
+	            keys.add(e.code);
+	            if (
+	              e.code.startsWith("Arrow") ||
+	              e.code === "Space" ||
+	              e.code === "ShiftLeft" ||
+	              e.code === "ShiftRight" ||
+	              e.code === "KeyW" ||
+	              e.code === "KeyA" ||
+	              e.code === "KeyS" ||
+	              e.code === "KeyD" ||
+	              e.code === "KeyQ" ||
+	              e.code === "KeyE" ||
+	              e.code === "KeyC"
+	            ) {
+	              e.preventDefault();
+	            }
+	          },
+	          { passive: false },
+	        );
+
+	        window.addEventListener(
+	          "keyup",
+	          (e) => {
+	            keys.delete(e.code);
+	          },
+	          { passive: true },
+	        );
+
+	        function updateCamera(dt) {
+	          if (!state.fly) return;
+	          const boost = keys.has("ShiftLeft") || keys.has("ShiftRight") ? 2.8 : 1.0;
+	          const speed = state.cameraSpeed * boost;
+
+	          const yaw = camera.yaw;
+	          const forwardX = Math.sin(yaw);
+	          const forwardZ = Math.cos(yaw);
+	          const rightX = Math.cos(yaw);
+	          const rightZ = -Math.sin(yaw);
+
+	          let vx = 0;
+	          let vy = 0;
+	          let vz = 0;
+
+	          if (keys.has("KeyW") || keys.has("ArrowUp")) {
+	            vx += forwardX;
+	            vz += forwardZ;
+	          }
+	          if (keys.has("KeyS") || keys.has("ArrowDown")) {
+	            vx -= forwardX;
+	            vz -= forwardZ;
+	          }
+	          if (keys.has("KeyD") || keys.has("ArrowRight")) {
+	            vx += rightX;
+	            vz += rightZ;
+	          }
+	          if (keys.has("KeyA") || keys.has("ArrowLeft")) {
+	            vx -= rightX;
+	            vz -= rightZ;
+	          }
+	          if (keys.has("KeyE") || keys.has("Space")) vy += 1;
+	          if (keys.has("KeyQ") || keys.has("KeyC")) vy -= 1;
+
+	          const len = Math.hypot(vx, vy, vz);
+	          if (len > 1e-6) {
+	            vx /= len;
+	            vy /= len;
+	            vz /= len;
+	          }
+
+	          camera.x += vx * speed * dt;
+	          camera.y += vy * speed * dt;
+	          camera.z += vz * speed * dt;
+	        }
+
+		        function updateWindVector() {
+		          const dirRad = (state.windDir * Math.PI) / 180;
+		          const vx = Math.cos(dirRad);
+	          const vy = Math.sin(dirRad);
+	          const speed = state.windSpeed * 0.65;
+	          return [vx * speed, vy * speed];
+	        }
+
+		        function computeSteps() {
+		          const q = state.quality;
+		          const t = Math.min(1, Math.max(0, (q - 0.5) / 1.5));
+		          const caps = state.power
+		            ? { maxSteps: isWebGL2 ? 118 : 90, minSteps: isWebGL2 ? 60 : 44 }
+		            : { maxSteps: isWebGL2 ? 78 : 60, minSteps: isWebGL2 ? 34 : 26 };
+		          let steps = Math.round(caps.maxSteps + (caps.minSteps - caps.maxSteps) * t);
+		          if (state.power && state.softShadows) steps = Math.round(steps * 0.72);
+		          return Math.max(caps.minSteps, Math.min(caps.maxSteps, steps));
+		        }
+
+	        function resize() {
+	          const dpr = Math.min(2.5, window.devicePixelRatio || 1);
+	          const scale = state.quality;
+	          const w = Math.max(1, Math.floor(canvas.clientWidth * dpr * scale));
+          const h = Math.max(1, Math.floor(canvas.clientHeight * dpr * scale));
+          if (canvas.width !== w || canvas.height !== h) {
+            canvas.width = w;
+            canvas.height = h;
+            gl.viewport(0, 0, w, h);
+          }
+        }
+
+        window.addEventListener("resize", resize, { passive: true });
+
+	        for (const id of [
+	          "quality",
+	          "windSpeed",
+	          "windDir",
+	          "scale",
+	          "coverage",
+	          "softness",
+	          "detail",
+	          "turbulence",
+	          "sunAngle",
+	          "sunPower",
+	          "cameraSpeed",
+	        ]) {
+          document.getElementById(id).addEventListener(
+            "input",
+            () => {
+              state[id] = Number(document.getElementById(id).value);
+              const out = valueEls.get(id);
+              if (out) out.textContent = formatValue(id, state[id]);
+              if (id === "quality") resize();
+            },
+            { passive: true },
+          );
+        }
+
+	        document.getElementById("animate").addEventListener(
+	          "change",
+	          (e) => {
+	            state.animate = e.target.checked;
+	          },
+	          { passive: true },
+	        );
+
+	        function syncPowerControls() {
+	          const softEl = document.getElementById("softShadows");
+	          if (!state.power) {
+	            if (state.softShadows) setControl("softShadows", false);
+	            softEl.disabled = true;
+	          } else {
+	            softEl.disabled = false;
+	          }
+	        }
+
+	        document.getElementById("fly").addEventListener(
+	          "change",
+	          (e) => {
+	            state.fly = e.target.checked;
+	            if (!state.fly) keys.clear();
+	          },
+	          { passive: true },
+	        );
+
+	        document.getElementById("power").addEventListener(
+	          "change",
+	          (e) => {
+	            state.power = e.target.checked;
+	            syncPowerControls();
+	          },
+	          { passive: true },
+	        );
+
+	        document.getElementById("softShadows").addEventListener(
+	          "change",
+	          (e) => {
+	            state.softShadows = e.target.checked;
+	          },
+	          { passive: true },
+	        );
+
+	        document.getElementById("resetCamera").addEventListener("click", () => {
+	          resetCamera();
+	        });
+
+        document.getElementById("randomize").addEventListener("click", () => {
+          state.seed = Math.random();
+          badge.textContent = `${isWebGL2 ? "WebGL2" : "WebGL"} · new seed`;
+        });
+
+	        document.getElementById("reset").addEventListener("click", () => {
+	          Object.assign(state, { ...defaults, seed: Math.random() });
+	          for (const [k, v] of Object.entries(defaults)) {
+	            if (k === "seed") continue;
+	            setControl(k, v);
+	          }
+	          keys.clear();
+	          resize();
+	          resetCamera();
+	          syncPowerControls();
+	          badge.textContent = isWebGL2 ? "WebGL2" : "WebGL";
+	        });
+
+	        syncPowerControls();
+
+	        canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
+	        const drag = { active: false, pointerId: null, mode: "sun", lastX: 0, lastY: 0 };
+	        const lookSensitivity = 0.0042;
+
+	        canvas.addEventListener("pointerdown", (e) => {
+	          drag.active = true;
+	          drag.pointerId = e.pointerId;
+	          drag.lastX = e.clientX;
+	          drag.lastY = e.clientY;
+	          drag.mode = state.fly && (e.button === 2 || e.shiftKey || e.altKey) ? "camera" : "sun";
+	          canvas.setPointerCapture(e.pointerId);
+	        });
+
+	        canvas.addEventListener("pointerup", (e) => {
+	          if (e.pointerId === drag.pointerId) drag.active = false;
+	        });
+
+	        canvas.addEventListener("pointercancel", (e) => {
+	          if (e.pointerId === drag.pointerId) drag.active = false;
+	        });
+
+	        canvas.addEventListener("pointermove", (e) => {
+	          if (!drag.active) return;
+
+	          if (drag.mode === "camera") {
+	            if (!state.fly) return;
+	            const dx = e.clientX - drag.lastX;
+	            const dy = e.clientY - drag.lastY;
+	            drag.lastX = e.clientX;
+	            drag.lastY = e.clientY;
+	            camera.yaw += dx * lookSensitivity;
+	            camera.pitch += dy * lookSensitivity;
+	            camera.pitch = Math.max(-1.4, Math.min(1.4, camera.pitch));
+	            return;
+	          }
+
+	          const r = canvas.getBoundingClientRect();
+	          const cx = r.left + r.width * 0.5;
+	          const cy = r.top + r.height * 0.6;
+	          const dx = e.clientX - cx;
+	          const dy = e.clientY - cy;
+	          const ang = (Math.atan2(dy, dx) * 180) / Math.PI;
+	          state.sunAngle = Math.max(-180, Math.min(180, ang));
+	          const slider = document.getElementById("sunAngle");
+	          slider.value = String(state.sunAngle);
+	          const out = valueEls.get("sunAngle");
+	          if (out) out.textContent = formatValue("sunAngle", state.sunAngle);
+	        });
+
+        let start = performance.now();
+        let time = 0;
+
+	        function frame(now) {
+	          const dt = Math.min(0.05, Math.max(0.0, (now - start) / 1000));
+	          start = now;
+	          if (state.animate) time += dt;
+
+	          updateCamera(dt);
+	          resize();
+
+          const w = canvas.width;
+          const h = canvas.height;
+          const wind = updateWindVector();
+
+          gl.useProgram(program);
+          gl.uniform2f(uniforms.u_resolution, w, h);
+          gl.uniform1f(uniforms.u_time, time);
+          gl.uniform1f(uniforms.u_seed, state.seed);
+          gl.uniform2f(uniforms.u_wind, wind[0], wind[1]);
+          gl.uniform1f(uniforms.u_scale, state.scale);
+          gl.uniform1f(uniforms.u_coverage, state.coverage);
+          gl.uniform1f(uniforms.u_softness, state.softness);
+	          gl.uniform1f(uniforms.u_detail, state.detail);
+	          gl.uniform1f(uniforms.u_turbulence, state.turbulence);
+	          gl.uniform1f(uniforms.u_sunAngle, state.sunAngle);
+	          gl.uniform1f(uniforms.u_sunPower, state.sunPower);
+	          gl.uniform3f(uniforms.u_camPos, camera.x, camera.y, camera.z);
+	          gl.uniform2f(uniforms.u_camYawPitch, camera.yaw, camera.pitch);
+	          gl.uniform1f(uniforms.u_hq, state.power ? 1 : 0);
+	          gl.uniform1f(uniforms.u_softShadows, state.power && state.softShadows ? 1 : 0);
+	          gl.uniform1f(uniforms.u_steps, computeSteps());
+
+	          gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+          requestAnimationFrame(frame);
+        }
+
+        resize();
+        requestAnimationFrame(frame);
+      })();
+    </script>
+  </body>
+</html>

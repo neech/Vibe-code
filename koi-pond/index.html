@@ -1,0 +1,2072 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Koi Pond — Realistic WebGL</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg0: #05060c;
+        --bg1: #081020;
+        --panel: rgba(10, 14, 24, 0.62);
+        --stroke: rgba(255, 255, 255, 0.12);
+        --text: rgba(255, 255, 255, 0.92);
+        --muted: rgba(255, 255, 255, 0.72);
+        --accent: rgba(120, 255, 215, 0.9);
+        --accent2: rgba(120, 210, 255, 0.9);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: radial-gradient(1200px 900px at 65% 10%, rgba(120, 210, 255, 0.12), transparent 58%),
+          linear-gradient(180deg, var(--bg1), var(--bg0));
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji",
+          "Segoe UI Emoji";
+        color: var(--text);
+      }
+
+      #gl {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      .hud {
+        position: fixed;
+        left: 16px;
+        bottom: 16px;
+        width: min(420px, calc(100vw - 32px));
+        padding: 14px 14px 12px;
+        border-radius: 16px;
+        border: 1px solid var(--stroke);
+        background: var(--panel);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        box-shadow: 0 18px 60px rgba(0, 0, 0, 0.4);
+        user-select: none;
+      }
+
+      .title {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+
+      .title h1 {
+        margin: 0;
+        font-size: 14px;
+        letter-spacing: 0.25px;
+        font-weight: 650;
+      }
+
+      .badge {
+        font-size: 11px;
+        padding: 5px 9px;
+        border-radius: 999px;
+        border: 1px solid rgba(140, 220, 255, 0.22);
+        background: rgba(10, 20, 35, 0.35);
+        color: rgba(210, 245, 255, 0.86);
+      }
+
+      .subtitle {
+        margin: 0 0 12px;
+        font-size: 12px;
+        line-height: 1.35;
+        color: var(--muted);
+      }
+
+      .controls {
+        display: grid;
+        gap: 10px;
+      }
+
+      .control {
+        display: grid;
+        gap: 6px;
+      }
+
+      label {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 10px;
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.82);
+      }
+
+      .value {
+        color: rgba(255, 255, 255, 0.72);
+        font-variant-numeric: tabular-nums;
+      }
+
+      input[type="range"] {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 100%;
+        height: 10px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, var(--accent), var(--accent2), rgba(165, 205, 255, 0.45));
+        outline: none;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09);
+      }
+
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 18px;
+        height: 18px;
+        border-radius: 999px;
+        background: radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.95), rgba(120, 210, 255, 0.9));
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
+      }
+
+      input[type="range"]::-moz-range-thumb {
+        width: 18px;
+        height: 18px;
+        border-radius: 999px;
+        background: radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.95), rgba(120, 210, 255, 0.9));
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
+      }
+
+      .row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 10px;
+      }
+
+      button {
+        appearance: none;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 12px;
+        background: rgba(0, 0, 0, 0.18);
+        color: rgba(255, 255, 255, 0.9);
+        padding: 8px 10px;
+        font-size: 12px;
+        cursor: pointer;
+      }
+
+      button:hover {
+        border-color: rgba(255, 255, 255, 0.22);
+      }
+
+      .hint {
+        margin: 10px 0 0;
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.62);
+        line-height: 1.3;
+      }
+
+      .hint kbd {
+        font: inherit;
+        padding: 1px 6px;
+        border-radius: 7px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        background: rgba(0, 0, 0, 0.16);
+        color: rgba(255, 255, 255, 0.8);
+      }
+
+      .status {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        max-width: min(520px, calc(100vw - 32px));
+        padding: 12px 14px;
+        border-radius: 14px;
+        border: 1px solid rgba(255, 210, 210, 0.18);
+        background: rgba(40, 12, 14, 0.5);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        box-shadow: 0 16px 55px rgba(0, 0, 0, 0.35);
+        color: rgba(255, 235, 235, 0.92);
+        display: none;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="gl" aria-label="Koi pond WebGL canvas"></canvas>
+
+    <div class="status" id="status" role="status" aria-live="polite"></div>
+
+    <section class="hud" aria-label="Controls">
+      <div class="title">
+        <h1>Koi Pond</h1>
+        <div class="badge">WebGL</div>
+      </div>
+      <p class="subtitle">A small Japanese garden pond with koi fish, refraction and soft water caustics.</p>
+
+      <div class="controls">
+        <div class="control">
+          <label for="fishCount">
+            <span>Koi count</span>
+            <span class="value" id="fishCountVal">14</span>
+          </label>
+          <input id="fishCount" type="range" min="4" max="28" step="1" value="14" />
+        </div>
+
+        <div class="control">
+          <label for="clarity">
+            <span>Water clarity</span>
+            <span class="value" id="clarityVal">0.75</span>
+          </label>
+          <input id="clarity" type="range" min="0.25" max="1.0" step="0.01" value="0.75" />
+        </div>
+
+        <div class="control">
+          <label for="ripples">
+            <span>Ripples</span>
+            <span class="value" id="ripplesVal">0.55</span>
+          </label>
+          <input id="ripples" type="range" min="0.0" max="1.0" step="0.01" value="0.55" />
+        </div>
+
+        <div class="control">
+          <label for="tod">
+            <span>Time of day</span>
+            <span class="value" id="todVal">16:30</span>
+          </label>
+          <input id="tod" type="range" min="0" max="24" step="0.1" value="16.5" />
+        </div>
+      </div>
+
+      <div class="row">
+        <button id="reset" type="button" title="Reset camera">Reset view</button>
+        <button id="toggleAuto" type="button" title="Toggle auto orbit">Auto: on</button>
+      </div>
+
+      <p class="hint">
+        Drag to orbit · Scroll to zoom · Double‑click to reset ·
+        <kbd>Space</kbd> toggles auto orbit
+      </p>
+    </section>
+
+    <script>
+      (() => {
+        const canvas = document.getElementById("gl");
+        const statusEl = document.getElementById("status");
+
+        const ui = {
+          fishCount: document.getElementById("fishCount"),
+          fishCountVal: document.getElementById("fishCountVal"),
+          clarity: document.getElementById("clarity"),
+          clarityVal: document.getElementById("clarityVal"),
+          ripples: document.getElementById("ripples"),
+          ripplesVal: document.getElementById("ripplesVal"),
+          tod: document.getElementById("tod"),
+          todVal: document.getElementById("todVal"),
+          reset: document.getElementById("reset"),
+          toggleAuto: document.getElementById("toggleAuto"),
+        };
+
+        function showStatus(message) {
+          statusEl.textContent = String(message ?? "Unknown error");
+          statusEl.style.display = "block";
+        }
+
+        const gl =
+          canvas.getContext("webgl", { antialias: true, alpha: false, depth: true, stencil: false }) ??
+          canvas.getContext("experimental-webgl", { antialias: true, alpha: false, depth: true, stencil: false });
+        if (!gl) {
+          showStatus("WebGL is not available in this browser/device.");
+          return;
+        }
+
+        const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+
+        const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+        const lerp = (a, b, t) => a + (b - a) * t;
+
+        const TAU = Math.PI * 2;
+        const DEG = Math.PI / 180;
+
+        const v3 = {
+          add: (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]],
+          sub: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]],
+          scale: (a, s) => [a[0] * s, a[1] * s, a[2] * s],
+          dot: (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2],
+          cross: (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]],
+          len: (a) => Math.hypot(a[0], a[1], a[2]),
+          norm: (a) => {
+            const l = Math.hypot(a[0], a[1], a[2]) || 1;
+            return [a[0] / l, a[1] / l, a[2] / l];
+          },
+        };
+
+        const m4 = {
+          identity: () => {
+            const out = new Float32Array(16);
+            out[0] = 1;
+            out[5] = 1;
+            out[10] = 1;
+            out[15] = 1;
+            return out;
+          },
+          multiply: (a, b) => {
+            const out = new Float32Array(16);
+            const a00 = a[0],
+              a01 = a[4],
+              a02 = a[8],
+              a03 = a[12];
+            const a10 = a[1],
+              a11 = a[5],
+              a12 = a[9],
+              a13 = a[13];
+            const a20 = a[2],
+              a21 = a[6],
+              a22 = a[10],
+              a23 = a[14];
+            const a30 = a[3],
+              a31 = a[7],
+              a32 = a[11],
+              a33 = a[15];
+
+            const b00 = b[0],
+              b01 = b[4],
+              b02 = b[8],
+              b03 = b[12];
+            const b10 = b[1],
+              b11 = b[5],
+              b12 = b[9],
+              b13 = b[13];
+            const b20 = b[2],
+              b21 = b[6],
+              b22 = b[10],
+              b23 = b[14];
+            const b30 = b[3],
+              b31 = b[7],
+              b32 = b[11],
+              b33 = b[15];
+
+            out[0] = a00 * b00 + a01 * b10 + a02 * b20 + a03 * b30;
+            out[1] = a10 * b00 + a11 * b10 + a12 * b20 + a13 * b30;
+            out[2] = a20 * b00 + a21 * b10 + a22 * b20 + a23 * b30;
+            out[3] = a30 * b00 + a31 * b10 + a32 * b20 + a33 * b30;
+            out[4] = a00 * b01 + a01 * b11 + a02 * b21 + a03 * b31;
+            out[5] = a10 * b01 + a11 * b11 + a12 * b21 + a13 * b31;
+            out[6] = a20 * b01 + a21 * b11 + a22 * b21 + a23 * b31;
+            out[7] = a30 * b01 + a31 * b11 + a32 * b21 + a33 * b31;
+            out[8] = a00 * b02 + a01 * b12 + a02 * b22 + a03 * b32;
+            out[9] = a10 * b02 + a11 * b12 + a12 * b22 + a13 * b32;
+            out[10] = a20 * b02 + a21 * b12 + a22 * b22 + a23 * b32;
+            out[11] = a30 * b02 + a31 * b12 + a32 * b22 + a33 * b32;
+            out[12] = a00 * b03 + a01 * b13 + a02 * b23 + a03 * b33;
+            out[13] = a10 * b03 + a11 * b13 + a12 * b23 + a13 * b33;
+            out[14] = a20 * b03 + a21 * b13 + a22 * b23 + a23 * b33;
+            out[15] = a30 * b03 + a31 * b13 + a32 * b23 + a33 * b33;
+            return out;
+          },
+          perspective: (fovy, aspect, near, far) => {
+            const out = new Float32Array(16);
+            const f = 1 / Math.tan(fovy / 2);
+            out[0] = f / aspect;
+            out[5] = f;
+            out[10] = (far + near) / (near - far);
+            out[11] = -1;
+            out[14] = (2 * far * near) / (near - far);
+            return out;
+          },
+          lookAt: (eye, target, up) => {
+            const zAxis = v3.norm(v3.sub(eye, target));
+            const xAxis = v3.norm(v3.cross(up, zAxis));
+            const yAxis = v3.cross(zAxis, xAxis);
+            const out = new Float32Array(16);
+            out[0] = xAxis[0];
+            out[1] = yAxis[0];
+            out[2] = zAxis[0];
+            out[3] = 0;
+            out[4] = xAxis[1];
+            out[5] = yAxis[1];
+            out[6] = zAxis[1];
+            out[7] = 0;
+            out[8] = xAxis[2];
+            out[9] = yAxis[2];
+            out[10] = zAxis[2];
+            out[11] = 0;
+            out[12] = -v3.dot(xAxis, eye);
+            out[13] = -v3.dot(yAxis, eye);
+            out[14] = -v3.dot(zAxis, eye);
+            out[15] = 1;
+            return out;
+          },
+          trsY: (pos, yaw, scale) => {
+            const c = Math.cos(yaw);
+            const s = Math.sin(yaw);
+            const sx = scale[0],
+              sy = scale[1],
+              sz = scale[2];
+            const out = new Float32Array(16);
+            out[0] = c * sx;
+            out[1] = 0;
+            out[2] = -s * sx;
+            out[3] = 0;
+            out[4] = 0;
+            out[5] = sy;
+            out[6] = 0;
+            out[7] = 0;
+            out[8] = s * sz;
+            out[9] = 0;
+            out[10] = c * sz;
+            out[11] = 0;
+            out[12] = pos[0];
+            out[13] = pos[1];
+            out[14] = pos[2];
+            out[15] = 1;
+            return out;
+          },
+        };
+
+        function compile(type, src) {
+          const shader = gl.createShader(type);
+          gl.shaderSource(shader, src);
+          gl.compileShader(shader);
+          if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            const info = gl.getShaderInfoLog(shader) || "Shader compilation failed.";
+            gl.deleteShader(shader);
+            throw new Error(info);
+          }
+          return shader;
+        }
+
+        function link(vs, fs) {
+          const program = gl.createProgram();
+          gl.attachShader(program, vs);
+          gl.attachShader(program, fs);
+          gl.linkProgram(program);
+          if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+            const info = gl.getProgramInfoLog(program) || "Program link failed.";
+            gl.deleteProgram(program);
+            throw new Error(info);
+          }
+          return program;
+        }
+
+        function createProgram(name, vertSrc, fragSrc) {
+          const vs = compile(gl.VERTEX_SHADER, vertSrc);
+          const fs = compile(gl.FRAGMENT_SHADER, fragSrc);
+          const prog = link(vs, fs);
+          gl.deleteShader(vs);
+          gl.deleteShader(fs);
+          return prog;
+        }
+
+        const SKY_VERT = `
+precision highp float;
+attribute vec2 a_pos;
+varying vec2 v_uv;
+void main() {
+  v_uv = a_pos * 0.5 + 0.5;
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+        `.trim();
+
+        const SKY_FRAG = `
+precision highp float;
+varying vec2 v_uv;
+uniform vec3 u_sunDir;
+uniform float u_time;
+
+float hash12(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+vec3 acesTonemap(vec3 x) {
+  const float a = 2.51;
+  const float b = 0.03;
+  const float c = 2.43;
+  const float d = 0.59;
+  const float e = 0.14;
+  return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+}
+
+vec3 skyColor(vec3 dir) {
+  dir = normalize(dir);
+
+  float sunAlt = u_sunDir.y;
+  float day = smoothstep(-0.08, 0.14, sunAlt);
+  float twilight = smoothstep(-0.20, 0.06, sunAlt) - smoothstep(0.06, 0.34, sunAlt);
+  twilight = clamp(twilight * 1.1, 0.0, 1.0);
+
+  float t = pow(clamp(dir.y * 0.5 + 0.5, 0.0, 1.0), 0.6);
+
+  vec3 nightZenith = vec3(0.004, 0.008, 0.018);
+  vec3 nightHorizon = vec3(0.014, 0.020, 0.034);
+  vec3 dayZenith = vec3(0.12, 0.30, 0.60);
+  vec3 dayHorizon = vec3(0.68, 0.82, 0.95);
+
+  vec3 sunsetZenith = vec3(0.18, 0.08, 0.28);
+  vec3 sunsetHorizon = vec3(1.10, 0.48, 0.16);
+
+  vec3 baseNight = mix(nightHorizon, nightZenith, t);
+  vec3 baseDay = mix(dayHorizon, dayZenith, t);
+  vec3 baseSunset = mix(sunsetHorizon, sunsetZenith, t);
+
+  vec3 col = mix(baseNight, baseDay, day);
+  col = mix(col, baseSunset, twilight);
+
+  float sunVis = smoothstep(-0.02, 0.08, sunAlt);
+  float sunCos = max(dot(dir, normalize(u_sunDir)), 0.0);
+  float sunDisk = pow(sunCos, 2200.0);
+  float sunHalo = pow(sunCos, 85.0);
+  vec3 sunCol = mix(vec3(1.20, 0.55, 0.18), vec3(1.0, 0.98, 0.92), clamp((sunAlt + 0.02) * 3.0, 0.0, 1.0));
+  col += sunCol * (sunDisk * 8.0 + sunHalo * 0.32) * sunVis;
+
+  return col;
+}
+
+void main() {
+  // A simple sky dome from UV.
+  vec2 p = v_uv * 2.0 - 1.0;
+  float r2 = dot(p, p);
+  float z = sqrt(max(0.0, 1.0 - r2));
+  vec3 dir = normalize(vec3(p.x, z, p.y));
+  vec3 col = skyColor(dir);
+
+  // Very subtle film grain.
+  col += (hash12(gl_FragCoord.xy + u_time) - 0.5) / 255.0;
+
+  col = acesTonemap(col);
+  col = pow(col, vec3(1.0 / 2.2));
+  gl_FragColor = vec4(col, 1.0);
+}
+        `.trim();
+
+        const BED_VERT = `
+precision highp float;
+attribute vec2 a_pos;
+uniform mat4 u_viewProj;
+uniform mat4 u_view;
+uniform float u_time;
+uniform float u_pondRadius;
+uniform float u_pondDepth;
+uniform float u_edgeDepth;
+varying vec3 v_worldPos;
+varying vec3 v_n;
+varying float v_viewZ;
+
+float hash12(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  float a = hash12(i);
+  float b = hash12(i + vec2(1.0, 0.0));
+  float c = hash12(i + vec2(0.0, 1.0));
+  float d = hash12(i + vec2(1.0, 1.0));
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+float fbm(vec2 p) {
+  float v = 0.0;
+  float a = 0.5;
+  mat2 m = mat2(1.7, 1.2, -1.2, 1.7);
+  for (int i = 0; i < 4; i++) {
+    v += a * noise(p);
+    p = m * p + 0.13;
+    a *= 0.55;
+  }
+  return v;
+}
+
+float bedHeight(vec2 xz) {
+  float r = clamp(length(xz) / u_pondRadius, 0.0, 1.0);
+  float t = pow(r, 2.25);
+  float y = -mix(u_pondDepth, u_edgeDepth, t);
+
+  // Pebbles + rock lumps (stronger near the rim)
+  float rim = smoothstep(0.35, 0.98, r);
+  float n1 = fbm(xz * 0.55) - 0.5;
+  float n2 = fbm(xz * 1.65 + 7.2) - 0.5;
+  y += (n1 * 0.22 + n2 * 0.10) * rim;
+
+  // A gentle central depression.
+  y -= 0.18 * exp(-dot(xz, xz) * 0.12);
+  return y;
+}
+
+void main() {
+  float r = length(a_pos) / u_pondRadius;
+  if (r > 1.01) {
+    // Push out of clip space (discard via scissor-like behavior).
+    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+    v_worldPos = vec3(0.0);
+    v_n = vec3(0.0, 1.0, 0.0);
+    v_viewZ = 1.0;
+    return;
+  }
+
+  vec2 xz = a_pos;
+  float y = bedHeight(xz);
+  vec3 worldPos = vec3(xz.x, y, xz.y);
+
+  float e = 0.045;
+  float hL = bedHeight(xz - vec2(e, 0.0));
+  float hR = bedHeight(xz + vec2(e, 0.0));
+  float hD = bedHeight(xz - vec2(0.0, e));
+  float hU = bedHeight(xz + vec2(0.0, e));
+  vec3 n = normalize(vec3(hL - hR, 2.0 * e, hD - hU));
+
+  v_worldPos = worldPos;
+  v_n = n;
+
+  vec4 viewPos = u_view * vec4(worldPos, 1.0);
+  v_viewZ = -viewPos.z;
+  gl_Position = u_viewProj * vec4(worldPos, 1.0);
+}
+        `.trim();
+
+        const BED_FRAG_SCENE = `
+precision highp float;
+varying vec3 v_worldPos;
+varying vec3 v_n;
+varying float v_viewZ;
+
+uniform vec3 u_sunDir;
+uniform vec3 u_cameraPos;
+uniform float u_time;
+uniform float u_far;
+uniform float u_pondRadius;
+
+float hash12(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  float a = hash12(i);
+  float b = hash12(i + vec2(1.0, 0.0));
+  float c = hash12(i + vec2(0.0, 1.0));
+  float d = hash12(i + vec2(1.0, 1.0));
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+float fbm(vec2 p) {
+  float v = 0.0;
+  float a = 0.5;
+  mat2 m = mat2(1.7, 1.2, -1.2, 1.7);
+  for (int i = 0; i < 4; i++) {
+    v += a * noise(p);
+    p = m * p + 0.13;
+    a *= 0.55;
+  }
+  return v;
+}
+
+vec3 acesTonemap(vec3 x) {
+  const float a = 2.51;
+  const float b = 0.03;
+  const float c = 2.43;
+  const float d = 0.59;
+  const float e = 0.14;
+  return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+}
+
+void main() {
+  vec3 n = normalize(v_n);
+  vec3 L = normalize(u_sunDir);
+  vec3 V = normalize(u_cameraPos - v_worldPos);
+
+  float ndl = max(dot(n, L), 0.0);
+  float ndv = max(dot(n, V), 0.0);
+
+  vec2 xz = v_worldPos.xz;
+  float r01 = clamp(length(xz) / u_pondRadius, 0.0, 1.0);
+
+  float grain = fbm(xz * 2.2);
+  float peb = fbm(xz * 5.1 + 1.7);
+  float slope = 1.0 - n.y;
+
+  vec3 sand = vec3(0.46, 0.39, 0.30);
+  vec3 stone = vec3(0.22, 0.24, 0.26);
+  vec3 moss = vec3(0.15, 0.23, 0.17);
+
+  float rockiness = smoothstep(0.10, 0.52, slope) + smoothstep(0.66, 0.96, r01) * 0.35;
+  float algae = smoothstep(0.62, 0.98, r01) * (1.0 - smoothstep(0.02, 0.20, slope));
+  float speck = smoothstep(0.62, 0.92, peb) * 0.65;
+
+  vec3 base = mix(sand, stone, clamp(rockiness, 0.0, 1.0));
+  base = mix(base, moss, algae * 0.7);
+  base *= 0.82 + 0.28 * grain;
+  base += speck * vec3(0.06, 0.06, 0.05);
+
+  // Soft caustics pattern
+  float depth = clamp(-v_worldPos.y, 0.0, 4.0);
+  float shallow = 1.0 - smoothstep(0.4, 2.2, depth);
+  float c = fbm(xz * 3.3 + vec2(u_time * 0.15, u_time * 0.10));
+  c = smoothstep(0.45, 0.78, c);
+  float caustic = c * shallow * ndl;
+  base += vec3(0.35, 0.42, 0.45) * caustic * 0.18;
+
+  vec3 H = normalize(L + V);
+  float spec = pow(max(dot(n, H), 0.0), 90.0) * (0.08 + 0.12 * shallow);
+
+  vec3 ambient = vec3(0.09, 0.10, 0.12);
+  vec3 col = base * (ambient + ndl * vec3(1.10, 1.05, 0.98) * 0.65);
+  col += vec3(1.0) * spec * 0.12;
+
+  // Very light haze with distance.
+  float haze = smoothstep(16.0, 55.0, v_viewZ);
+  col = mix(col, vec3(0.02, 0.04, 0.05), haze * 0.55);
+
+  col = acesTonemap(col);
+  col += (hash12(gl_FragCoord.xy + u_time) - 0.5) / 255.0;
+
+  // Pack linear-ish view depth into alpha (0..1).
+  float a = clamp(v_viewZ / u_far, 0.0, 1.0);
+  gl_FragColor = vec4(col, a);
+}
+        `.trim();
+
+        const FISH_VERT = `
+precision highp float;
+attribute vec3 a_pos;
+attribute vec3 a_n;
+attribute vec2 a_uv;
+attribute float a_tail;
+
+uniform mat4 u_viewProj;
+uniform mat4 u_view;
+uniform mat4 u_model;
+uniform float u_time;
+uniform float u_tailAmp;
+uniform float u_tailFreq;
+uniform float u_phase;
+
+varying vec3 v_worldPos;
+varying vec3 v_n;
+varying vec2 v_uv;
+varying float v_viewZ;
+varying float v_tail;
+
+void main() {
+  vec3 pos = a_pos;
+
+  float tailMask = smoothstep(0.45, 1.0, a_tail);
+  float wiggle = sin(u_time * u_tailFreq + u_phase + a_pos.x * 5.5) * u_tailAmp * tailMask;
+  pos.z += wiggle;
+
+  vec4 world = u_model * vec4(pos, 1.0);
+  v_worldPos = world.xyz;
+
+  // Approximate normal deformation.
+  vec3 n = a_n;
+  n.z += cos(u_time * u_tailFreq + u_phase + a_pos.x * 5.5) * u_tailAmp * 0.45 * tailMask;
+  v_n = normalize((u_model * vec4(n, 0.0)).xyz);
+
+  v_uv = a_uv;
+  v_tail = a_tail;
+
+  vec4 viewPos = u_view * world;
+  v_viewZ = -viewPos.z;
+  gl_Position = u_viewProj * world;
+}
+        `.trim();
+
+        const FISH_FRAG_SCENE = `
+precision highp float;
+varying vec3 v_worldPos;
+varying vec3 v_n;
+varying vec2 v_uv;
+varying float v_viewZ;
+varying float v_tail;
+
+uniform vec3 u_sunDir;
+uniform vec3 u_cameraPos;
+uniform float u_time;
+uniform float u_far;
+uniform float u_seed;
+
+float hash12(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  float a = hash12(i);
+  float b = hash12(i + vec2(1.0, 0.0));
+  float c = hash12(i + vec2(0.0, 1.0));
+  float d = hash12(i + vec2(1.0, 1.0));
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+float fbm(vec2 p) {
+  float v = 0.0;
+  float a = 0.5;
+  mat2 m = mat2(1.6, 1.2, -1.2, 1.6);
+  for (int i = 0; i < 4; i++) {
+    v += a * noise(p);
+    p = m * p + 0.11;
+    a *= 0.55;
+  }
+  return v;
+}
+
+vec3 acesTonemap(vec3 x) {
+  const float a = 2.51;
+  const float b = 0.03;
+  const float c = 2.43;
+  const float d = 0.59;
+  const float e = 0.14;
+  return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+}
+
+void main() {
+  vec3 N = normalize(v_n);
+  vec3 L = normalize(u_sunDir);
+  vec3 V = normalize(u_cameraPos - v_worldPos);
+  vec3 H = normalize(L + V);
+
+  float ndl = max(dot(N, L), 0.0);
+  float ndh = max(dot(N, H), 0.0);
+
+  // Koi pattern (procedural): white base + orange patches + occasional sumi (black).
+  vec2 uv = v_uv;
+  float stripe = fbm(vec2(uv.x * 3.2, uv.y * 8.0) + vec2(u_seed * 7.3, u_seed * 1.9));
+  float patch = smoothstep(0.50, 0.74, stripe);
+
+  float sumiN = fbm(vec2(uv.x * 6.1, uv.y * 12.0) + vec2(u_seed * 21.0, u_seed * 9.0));
+  float sumi = smoothstep(0.78, 0.90, sumiN) * smoothstep(0.10, 0.85, uv.x);
+  sumi *= smoothstep(0.05, 0.25, abs(uv.y - 0.5));
+
+  vec3 white = vec3(0.96, 0.96, 0.94);
+  vec3 orange = vec3(0.98, 0.50, 0.14);
+  vec3 black = vec3(0.08, 0.09, 0.10);
+
+  vec3 albedo = mix(white, orange, patch);
+  albedo = mix(albedo, black, sumi * 0.92);
+
+  // Slight belly shading.
+  float belly = 1.0 - smoothstep(0.00, 0.42, abs(uv.y - 0.5));
+  albedo *= mix(0.92, 1.05, belly);
+
+  float wrap = clamp(dot(N, L) * 0.5 + 0.5, 0.0, 1.0);
+  vec3 diffuse = albedo * (0.16 + 0.84 * wrap);
+  float spec = pow(ndh, 110.0) * (0.20 + 0.20 * patch);
+
+  float rim = pow(1.0 - max(dot(N, V), 0.0), 2.4) * 0.16;
+  vec3 rimCol = vec3(0.60, 0.72, 0.85) * rim;
+
+  // Tail fin a bit translucent / brighter.
+  float fin = smoothstep(0.75, 1.0, v_tail);
+  diffuse = mix(diffuse, diffuse + vec3(0.10, 0.14, 0.18) * fin, fin);
+
+  vec3 col = diffuse * (0.35 + 0.65 * ndl);
+  col += vec3(1.0, 0.96, 0.88) * spec * 0.35;
+  col += rimCol;
+
+  // Light distance haze so fish blend with the scene.
+  float haze = smoothstep(10.0, 48.0, v_viewZ);
+  col = mix(col, vec3(0.02, 0.04, 0.05), haze * 0.55);
+
+  col = acesTonemap(col);
+
+  float a = clamp(v_viewZ / u_far, 0.0, 1.0);
+  gl_FragColor = vec4(col, a);
+}
+        `.trim();
+
+        const GROUND_VERT = `
+precision highp float;
+attribute vec3 a_pos;
+attribute vec3 a_n;
+uniform mat4 u_viewProj;
+varying vec3 v_worldPos;
+varying vec3 v_n;
+void main() {
+  v_worldPos = a_pos;
+  v_n = a_n;
+  gl_Position = u_viewProj * vec4(a_pos, 1.0);
+}
+        `.trim();
+
+        const GROUND_FRAG = `
+precision highp float;
+varying vec3 v_worldPos;
+varying vec3 v_n;
+
+uniform vec3 u_sunDir;
+uniform vec3 u_cameraPos;
+uniform float u_time;
+uniform float u_pondRadius;
+uniform float u_rimOuter;
+
+float hash12(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  float a = hash12(i);
+  float b = hash12(i + vec2(1.0, 0.0));
+  float c = hash12(i + vec2(0.0, 1.0));
+  float d = hash12(i + vec2(1.0, 1.0));
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+float fbm(vec2 p) {
+  float v = 0.0;
+  float a = 0.5;
+  mat2 m = mat2(1.7, 1.2, -1.2, 1.7);
+  for (int i = 0; i < 4; i++) {
+    v += a * noise(p);
+    p = m * p + 0.13;
+    a *= 0.55;
+  }
+  return v;
+}
+
+vec3 acesTonemap(vec3 x) {
+  const float a = 2.51;
+  const float b = 0.03;
+  const float c = 2.43;
+  const float d = 0.59;
+  const float e = 0.14;
+  return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+}
+
+void main() {
+  vec2 xz = v_worldPos.xz;
+  float r = length(xz);
+  if (r < u_pondRadius - 0.02) discard;
+
+  float rimBand =
+    smoothstep(u_pondRadius - 0.05, u_pondRadius + 0.10, r) * (1.0 - smoothstep(u_rimOuter - 0.10, u_rimOuter + 0.15, r));
+
+  vec3 n = normalize(v_n);
+  vec3 L = normalize(u_sunDir);
+  vec3 V = normalize(u_cameraPos - v_worldPos);
+  vec3 H = normalize(L + V);
+
+  float ndl = max(dot(n, L), 0.0);
+  float spec = pow(max(dot(n, H), 0.0), mix(55.0, 85.0, rimBand));
+
+  float gravel = fbm(xz * 2.4);
+  float pebbles = fbm(xz * 6.0 + 3.7);
+  float moss = fbm(xz * 1.0 + 12.2);
+
+  vec3 gravelCol = vec3(0.12, 0.12, 0.13);
+  vec3 stoneCol = vec3(0.18, 0.19, 0.20);
+  vec3 mossCol = vec3(0.11, 0.16, 0.12);
+
+  float nearRim = 1.0 - smoothstep(u_rimOuter - 0.2, u_rimOuter + 1.6, r);
+  vec3 base = mix(gravelCol, stoneCol, smoothstep(0.55, 0.85, gravel));
+  base = mix(base, mossCol, nearRim * smoothstep(0.45, 0.75, moss) * 0.55);
+  base += smoothstep(0.70, 0.92, pebbles) * 0.06;
+
+  vec3 col = base * (0.18 + 0.82 * ndl);
+  vec3 rimStone = mix(vec3(0.11, 0.12, 0.13), vec3(0.24, 0.25, 0.26), gravel);
+  col = mix(col, rimStone * (0.22 + 0.78 * ndl), rimBand);
+  col += vec3(1.0) * spec * mix(0.08, 0.12, rimBand);
+  col *= 0.92;
+
+  // Subtle vignette toward far corners.
+  float v = smoothstep(18.0, 32.0, r);
+  col *= 1.0 - v * 0.08;
+
+  col = acesTonemap(col);
+  col += (hash12(gl_FragCoord.xy + u_time) - 0.5) / 255.0;
+  col = pow(col, vec3(1.0 / 2.2));
+  gl_FragColor = vec4(col, 1.0);
+}
+        `.trim();
+
+        const WATER_VERT = `
+precision highp float;
+attribute vec2 a_pos;
+uniform mat4 u_viewProj;
+uniform mat4 u_view;
+uniform float u_time;
+uniform float u_pondRadius;
+uniform float u_ripples;
+varying vec3 v_worldPos;
+varying vec3 v_n;
+varying vec2 v_screenUv;
+varying float v_viewZ;
+varying float v_r01;
+
+float wave(vec2 xz, vec2 dir, float freq, float amp, float speed) {
+  return sin(dot(xz, dir) * freq + u_time * speed) * amp;
+}
+
+void main() {
+  vec2 xz = a_pos;
+  float r = length(xz) / u_pondRadius;
+  v_r01 = r;
+
+  vec2 d1 = normalize(vec2(0.85, 0.25));
+  vec2 d2 = normalize(vec2(-0.35, 0.94));
+  vec2 d3 = normalize(vec2(0.10, -0.99));
+
+  float amp = mix(0.01, 0.06, u_ripples);
+  float y = 0.0;
+  y += wave(xz, d1, 1.25, amp * 1.0, 0.85);
+  y += wave(xz, d2, 1.90, amp * 0.55, 1.15);
+  y += wave(xz, d3, 2.80, amp * 0.30, 1.55);
+
+  // Derivatives for normals (partial derivatives dy/dx and dy/dz).
+  float dy_dx = 0.0;
+  float dy_dz = 0.0;
+
+  float p1 = dot(xz, d1) * 1.25 + u_time * 0.85;
+  float p2 = dot(xz, d2) * 1.90 + u_time * 1.15;
+  float p3 = dot(xz, d3) * 2.80 + u_time * 1.55;
+
+  dy_dx += cos(p1) * (amp * 1.0) * 1.25 * d1.x;
+  dy_dz += cos(p1) * (amp * 1.0) * 1.25 * d1.y;
+  dy_dx += cos(p2) * (amp * 0.55) * 1.90 * d2.x;
+  dy_dz += cos(p2) * (amp * 0.55) * 1.90 * d2.y;
+  dy_dx += cos(p3) * (amp * 0.30) * 2.80 * d3.x;
+  dy_dz += cos(p3) * (amp * 0.30) * 2.80 * d3.y;
+
+  vec3 n = normalize(vec3(-dy_dx, 1.0, -dy_dz));
+
+  vec3 worldPos = vec3(xz.x, y, xz.y);
+  v_worldPos = worldPos;
+  v_n = n;
+
+  vec4 clip = u_viewProj * vec4(worldPos, 1.0);
+  vec3 ndc = clip.xyz / clip.w;
+  v_screenUv = ndc.xy * 0.5 + 0.5;
+
+  vec4 viewPos = u_view * vec4(worldPos, 1.0);
+  v_viewZ = -viewPos.z;
+
+  gl_Position = clip;
+}
+        `.trim();
+
+        const WATER_FRAG = `
+precision highp float;
+varying vec3 v_worldPos;
+varying vec3 v_n;
+varying vec2 v_screenUv;
+varying float v_viewZ;
+varying float v_r01;
+
+uniform sampler2D u_sceneTex;
+uniform vec2 u_resolution;
+uniform vec3 u_sunDir;
+uniform vec3 u_cameraPos;
+uniform float u_time;
+uniform float u_far;
+uniform float u_pondRadius;
+uniform float u_clarity;
+uniform float u_ripples;
+
+float hash12(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+vec3 acesTonemap(vec3 x) {
+  const float a = 2.51;
+  const float b = 0.03;
+  const float c = 2.43;
+  const float d = 0.59;
+  const float e = 0.14;
+  return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+}
+
+vec3 skyColor(vec3 dir, vec3 sunDir) {
+  dir = normalize(dir);
+  float sunAlt = sunDir.y;
+  float day = smoothstep(-0.08, 0.14, sunAlt);
+  float t = pow(clamp(dir.y * 0.5 + 0.5, 0.0, 1.0), 0.6);
+  vec3 nightZenith = vec3(0.004, 0.008, 0.018);
+  vec3 nightHorizon = vec3(0.014, 0.020, 0.034);
+  vec3 dayZenith = vec3(0.12, 0.30, 0.60);
+  vec3 dayHorizon = vec3(0.68, 0.82, 0.95);
+  vec3 col = mix(mix(nightHorizon, nightZenith, t), mix(dayHorizon, dayZenith, t), day);
+
+  float sunVis = smoothstep(-0.02, 0.08, sunAlt);
+  float sunCos = max(dot(dir, normalize(sunDir)), 0.0);
+  float sunDisk = pow(sunCos, 2200.0);
+  float sunHalo = pow(sunCos, 85.0);
+  vec3 sunCol = mix(vec3(1.20, 0.55, 0.18), vec3(1.0, 0.98, 0.92), clamp((sunAlt + 0.02) * 3.0, 0.0, 1.0));
+  col += sunCol * (sunDisk * 8.0 + sunHalo * 0.32) * sunVis;
+  return col;
+}
+
+void main() {
+  float r = length(v_worldPos.xz);
+  if (r > u_pondRadius - 0.02) discard;
+
+  vec3 N = normalize(v_n);
+  vec3 V = normalize(u_cameraPos - v_worldPos);
+  vec3 L = normalize(u_sunDir);
+
+  // Screen-space refraction sample.
+  float pixel = 1.0 / max(1.0, min(u_resolution.x, u_resolution.y));
+  vec2 distort = N.xz * (0.012 + 0.025 * u_ripples) * (1.0 + 0.25 * sin(u_time * 0.7));
+  distort *= 0.65 + 0.35 * (1.0 - clamp(v_r01, 0.0, 1.0));
+
+  vec2 uv = v_screenUv + distort;
+  uv = clamp(uv, vec2(0.001), vec2(0.999));
+  vec4 scene = texture2D(u_sceneTex, uv);
+
+  float sceneZ = scene.a * u_far;
+  float thickness = max(sceneZ - v_viewZ, 0.0);
+
+  // Absorption coefficients (red absorbs fastest).
+  vec3 absorbK = mix(vec3(0.35, 0.14, 0.08), vec3(0.18, 0.08, 0.045), u_clarity);
+  vec3 trans = exp(-absorbK * thickness);
+  vec3 refr = scene.rgb * trans;
+
+  // Add a little in-water scattering/haze.
+  vec3 waterTint = vec3(0.03, 0.10, 0.09);
+  float scatter = 1.0 - exp(-0.18 * thickness);
+  refr = mix(refr, waterTint, scatter * 0.65);
+
+  // Reflection from the sky.
+  vec3 R = reflect(-V, N);
+  vec3 refl = skyColor(R, u_sunDir);
+
+  float fres = 0.04 + (1.0 - 0.04) * pow(1.0 - max(dot(N, V), 0.0), 5.0);
+
+  // Specular sun sparkle.
+  float spec = pow(max(dot(reflect(-L, N), V), 0.0), 220.0);
+  vec3 sparkle = vec3(1.0, 0.98, 0.92) * spec * (0.55 + 0.65 * u_ripples);
+
+  // Edge foam / lapping at the stones.
+  float edge = smoothstep(u_pondRadius - 0.42, u_pondRadius - 0.06, r);
+  vec3 foam = vec3(0.90, 0.96, 1.0) * edge * 0.06;
+
+  vec3 col = mix(refr, refl, fres);
+  col += sparkle + foam;
+
+  // Very subtle vignette inside the pond to sell depth.
+  col *= 1.0 - smoothstep(0.0, 1.0, v_r01) * 0.06;
+
+  col = acesTonemap(col);
+  col += (hash12(gl_FragCoord.xy + u_time) - 0.5) / 255.0;
+  col = pow(col, vec3(1.0 / 2.2));
+  gl_FragColor = vec4(col, 1.0);
+}
+        `.trim();
+
+        const PAD_VERT = `
+precision highp float;
+attribute vec3 a_pos;
+attribute vec2 a_uv;
+uniform mat4 u_viewProj;
+uniform mat4 u_model;
+varying vec2 v_uv;
+varying vec3 v_worldPos;
+void main() {
+  v_uv = a_uv;
+  vec4 world = u_model * vec4(a_pos, 1.0);
+  v_worldPos = world.xyz;
+  gl_Position = u_viewProj * world;
+}
+        `.trim();
+
+        const PAD_FRAG = `
+precision highp float;
+varying vec2 v_uv;
+varying vec3 v_worldPos;
+uniform vec3 u_sunDir;
+uniform vec3 u_cameraPos;
+uniform float u_time;
+
+float hash12(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+vec3 acesTonemap(vec3 x) {
+  const float a = 2.51;
+  const float b = 0.03;
+  const float c = 2.43;
+  const float d = 0.59;
+  const float e = 0.14;
+  return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+}
+
+void main() {
+  vec2 p = v_uv * 2.0 - 1.0;
+  float r = length(p);
+  if (r > 1.0) discard;
+
+  float ang = atan(p.y, p.x);
+  // Notch (lily pad cut).
+  float notch = (1.0 - smoothstep(0.02, 0.08, abs(ang))) * smoothstep(0.25, 0.90, r);
+  if (notch > 0.5) discard;
+
+  float edge = 1.0 - smoothstep(0.92, 1.0, r);
+  float veins = 0.5 + 0.5 * sin(ang * 10.0 + r * 6.0);
+  float speck = hash12(gl_FragCoord.xy + u_time) * 0.12;
+
+  vec3 N = vec3(0.0, 1.0, 0.0);
+  vec3 L = normalize(u_sunDir);
+  vec3 V = normalize(u_cameraPos - v_worldPos);
+  vec3 H = normalize(L + V);
+
+  float ndl = max(dot(N, L), 0.0);
+  float spec = pow(max(dot(N, H), 0.0), 65.0) * 0.25;
+
+  vec3 base = mix(vec3(0.10, 0.24, 0.14), vec3(0.14, 0.34, 0.20), veins * 0.4 + 0.25);
+  base *= 0.88 + 0.18 * (1.0 - r);
+  base += speck;
+
+  vec3 col = base * (0.22 + 0.78 * ndl);
+  col += vec3(0.9, 1.0, 0.92) * spec;
+  col = mix(col, vec3(0.02, 0.03, 0.035), (1.0 - edge) * 0.25);
+
+  col = acesTonemap(col);
+  col = pow(col, vec3(1.0 / 2.2));
+  gl_FragColor = vec4(col, edge);
+}
+        `.trim();
+
+        let skyProgram;
+        let bedProgramScene;
+        let fishProgramScene;
+        let groundProgram;
+        let waterProgram;
+        let padProgram;
+        try {
+          skyProgram = createProgram("sky", SKY_VERT, SKY_FRAG);
+          bedProgramScene = createProgram("bedScene", BED_VERT, BED_FRAG_SCENE);
+          fishProgramScene = createProgram("fishScene", FISH_VERT, FISH_FRAG_SCENE);
+          groundProgram = createProgram("ground", GROUND_VERT, GROUND_FRAG);
+          waterProgram = createProgram("water", WATER_VERT, WATER_FRAG);
+          padProgram = createProgram("pads", PAD_VERT, PAD_FRAG);
+        } catch (err) {
+          showStatus(err?.message ?? String(err));
+          return;
+        }
+
+        function createFullScreenTri() {
+          const vbo = gl.createBuffer();
+          gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+          gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+          return { vbo };
+        }
+
+        function createGrid(res, size) {
+          const verts = new Float32Array((res + 1) * (res + 1) * 2);
+          let v = 0;
+          for (let z = 0; z <= res; z++) {
+            const tz = z / res;
+            const pz = (tz - 0.5) * size;
+            for (let x = 0; x <= res; x++) {
+              const tx = x / res;
+              const px = (tx - 0.5) * size;
+              verts[v++] = px;
+              verts[v++] = pz;
+            }
+          }
+
+          const indices = new Uint16Array(res * res * 6);
+          let idx = 0;
+          const row = res + 1;
+          for (let z = 0; z < res; z++) {
+            for (let x = 0; x < res; x++) {
+              const i0 = z * row + x;
+              const i1 = i0 + 1;
+              const i2 = i0 + row;
+              const i3 = i2 + 1;
+              indices[idx++] = i0;
+              indices[idx++] = i2;
+              indices[idx++] = i1;
+              indices[idx++] = i1;
+              indices[idx++] = i2;
+              indices[idx++] = i3;
+            }
+          }
+
+          const vbo = gl.createBuffer();
+          gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+          gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
+          const ebo = gl.createBuffer();
+          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo);
+          gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+          return { vbo, ebo, indexCount: indices.length };
+        }
+
+        function createGroundGrid(res, size) {
+          const stride = 6;
+          const verts = new Float32Array((res + 1) * (res + 1) * stride);
+          let v = 0;
+          for (let z = 0; z <= res; z++) {
+            const tz = z / res;
+            const pz = (tz - 0.5) * size;
+            for (let x = 0; x <= res; x++) {
+              const tx = x / res;
+              const px = (tx - 0.5) * size;
+              // Low-relief ground height.
+              const r = Math.hypot(px, pz);
+              const base = 0.015 + 0.03 * Math.exp(-Math.max(0, r - 5.5) * 0.18);
+              const h = base + 0.02 * Math.sin(px * 0.35) * Math.sin(pz * 0.35);
+              verts[v++] = px;
+              verts[v++] = h;
+              verts[v++] = pz;
+              verts[v++] = 0;
+              verts[v++] = 1;
+              verts[v++] = 0;
+            }
+          }
+
+          const indices = new Uint16Array(res * res * 6);
+          let idx = 0;
+          const row = res + 1;
+          for (let z = 0; z < res; z++) {
+            for (let x = 0; x < res; x++) {
+              const i0 = z * row + x;
+              const i1 = i0 + 1;
+              const i2 = i0 + row;
+              const i3 = i2 + 1;
+              indices[idx++] = i0;
+              indices[idx++] = i2;
+              indices[idx++] = i1;
+              indices[idx++] = i1;
+              indices[idx++] = i2;
+              indices[idx++] = i3;
+            }
+          }
+
+          const vbo = gl.createBuffer();
+          gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+          gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
+          const ebo = gl.createBuffer();
+          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo);
+          gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+          return { vbo, ebo, indexCount: indices.length, strideBytes: stride * 4 };
+        }
+
+        function createRing(innerR, outerR, topY, bottomY, segments) {
+          const stride = 6;
+          const verts = [];
+          const indices = [];
+
+          function pushV(px, py, pz, nx, ny, nz) {
+            verts.push(px, py, pz, nx, ny, nz);
+          }
+
+          function addQuad(a, b, c, d) {
+            indices.push(a, b, c, a, c, d);
+          }
+
+          for (let i = 0; i <= segments; i++) {
+            const t = i / segments;
+            const ang = t * TAU;
+            const cs = Math.cos(ang);
+            const sn = Math.sin(ang);
+
+            // Top: inner + outer
+            pushV(innerR * cs, topY, innerR * sn, 0, 1, 0);
+            pushV(outerR * cs, topY, outerR * sn, 0, 1, 0);
+
+            // Outer wall: top + bottom
+            pushV(outerR * cs, topY, outerR * sn, cs, 0, sn);
+            pushV(outerR * cs, bottomY, outerR * sn, cs, 0, sn);
+
+            // Inner wall: top + bottom (normal inward)
+            pushV(innerR * cs, topY, innerR * sn, -cs, 0, -sn);
+            pushV(innerR * cs, bottomY, innerR * sn, -cs, 0, -sn);
+          }
+
+          const ringStride = 6; // verts per segment step
+          for (let i = 0; i < segments; i++) {
+            const base0 = i * ringStride;
+            const base1 = (i + 1) * ringStride;
+
+            // Top face (two triangles)
+            addQuad(base0 + 0, base0 + 1, base1 + 1, base1 + 0);
+            // Outer wall
+            addQuad(base0 + 2, base0 + 3, base1 + 3, base1 + 2);
+            // Inner wall
+            addQuad(base0 + 4, base1 + 4, base1 + 5, base0 + 5);
+          }
+
+          const vbo = gl.createBuffer();
+          gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+          gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.STATIC_DRAW);
+          const ebo = gl.createBuffer();
+          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo);
+          gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+          return { vbo, ebo, indexCount: indices.length, strideBytes: stride * 4 };
+        }
+
+        function createFishMesh(segments = 14, sides = 12) {
+          const stride = 9; // pos3 + n3 + uv2 + tail1
+          const verts = [];
+          const indices = [];
+
+          function pushVertex(px, py, pz, nx, ny, nz, u, v, tail) {
+            verts.push(px, py, pz, nx, ny, nz, u, v, tail);
+          }
+
+          function idxOf(i, j) {
+            return i * sides + j;
+          }
+
+          for (let i = 0; i <= segments; i++) {
+            const t = i / segments;
+            const x = lerp(-1.05, 1.05, t);
+            const a = Math.pow(1 - Math.abs(lerp(-1, 1, t)), 1.25);
+            const radius = 0.24 * a + 0.04;
+            const ry = radius * 0.62;
+            const rz = radius * 1.05;
+            for (let j = 0; j < sides; j++) {
+              const ang = (j / sides) * TAU;
+              const cy = Math.sin(ang);
+              const cz = Math.cos(ang);
+              const py = cy * ry;
+              const pz = cz * rz;
+              const nx = 0.0;
+              const ny = cy / (ry + 1e-4);
+              const nz = cz / (rz + 1e-4);
+              const nlen = Math.hypot(nx, ny, nz) || 1;
+              pushVertex(x, py, pz, nx / nlen, ny / nlen, nz / nlen, t, j / sides, t);
+            }
+          }
+
+          for (let i = 0; i < segments; i++) {
+            for (let j = 0; j < sides; j++) {
+              const j1 = (j + 1) % sides;
+              const i0 = idxOf(i, j);
+              const i1 = idxOf(i, j1);
+              const i2 = idxOf(i + 1, j);
+              const i3 = idxOf(i + 1, j1);
+              indices.push(i0, i2, i1, i1, i2, i3);
+            }
+          }
+
+          // Tail fin (simple vertical diamond-ish plane)
+          const baseVert = verts.length / stride;
+          const tailX = 1.08;
+          const finW = 0.34;
+          const finH = 0.26;
+          const finN = [1, 0, 0];
+          pushVertex(tailX, 0.0, 0.0, finN[0], finN[1], finN[2], 1.0, 0.5, 1.0);
+          pushVertex(tailX + 0.20, finH, finW, finN[0], finN[1], finN[2], 1.0, 0.0, 1.0);
+          pushVertex(tailX + 0.20, -finH, finW, finN[0], finN[1], finN[2], 1.0, 1.0, 1.0);
+          pushVertex(tailX + 0.20, finH, -finW, finN[0], finN[1], finN[2], 1.0, 0.0, 1.0);
+          pushVertex(tailX + 0.20, -finH, -finW, finN[0], finN[1], finN[2], 1.0, 1.0, 1.0);
+          indices.push(
+            baseVert + 0,
+            baseVert + 1,
+            baseVert + 2,
+            baseVert + 0,
+            baseVert + 3,
+            baseVert + 1,
+            baseVert + 0,
+            baseVert + 2,
+            baseVert + 4,
+            baseVert + 0,
+            baseVert + 4,
+            baseVert + 3,
+          );
+
+          const vbo = gl.createBuffer();
+          gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+          gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.STATIC_DRAW);
+          const ebo = gl.createBuffer();
+          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo);
+          gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+          return { vbo, ebo, indexCount: indices.length, strideBytes: stride * 4 };
+        }
+
+        function createPadMesh(segments = 28) {
+          const stride = 5; // pos3 + uv2
+          const verts = [];
+          const indices = [];
+
+          // Center
+          verts.push(0, 0, 0, 0.5, 0.5);
+          for (let i = 0; i <= segments; i++) {
+            const t = i / segments;
+            const ang = t * TAU;
+            const cs = Math.cos(ang);
+            const sn = Math.sin(ang);
+            const x = cs;
+            const z = sn;
+            verts.push(x, 0, z, x * 0.5 + 0.5, z * 0.5 + 0.5);
+          }
+
+          for (let i = 0; i < segments; i++) {
+            indices.push(0, 1 + i, 2 + i);
+          }
+
+          const vbo = gl.createBuffer();
+          gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+          gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.STATIC_DRAW);
+          const ebo = gl.createBuffer();
+          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo);
+          gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+          return { vbo, ebo, indexCount: indices.length, strideBytes: stride * 4 };
+        }
+
+        const fullscreenTri = createFullScreenTri();
+        const pondGrid = createGrid(210, 13.5);
+        const waterGrid = createGrid(210, 13.5);
+        const groundGrid = createGroundGrid(200, 26);
+        const rimMesh = createRing(6.0, 7.0, 0.07, -0.22, 180);
+        const fishMesh = createFishMesh();
+        const padMesh = createPadMesh();
+
+        const POND_RADIUS = 6.2;
+        const RIM_OUTER = 7.0;
+        const POND_DEPTH = 2.7;
+        const EDGE_DEPTH = 0.55;
+        const FAR = 60;
+        const NEAR = 0.1;
+        const FOVY = 55 * DEG;
+
+        const camera = {
+          yaw: 0.45,
+          pitch: 0.28,
+          yawTarget: 0.45,
+          pitchTarget: 0.28,
+          radius: 12.5,
+          radiusTarget: 12.5,
+          height: 2.2,
+          auto: !prefersReducedMotion,
+        };
+
+        const pointer = {
+          down: false,
+          x: 0,
+          y: 0,
+          yaw: 0,
+          pitch: 0,
+          lastInteraction: 0,
+        };
+
+        function onPointerDown(e) {
+          pointer.down = true;
+          pointer.x = e.clientX;
+          pointer.y = e.clientY;
+          pointer.yaw = camera.yawTarget;
+          pointer.pitch = camera.pitchTarget;
+          pointer.lastInteraction = performance.now();
+          canvas.setPointerCapture?.(e.pointerId);
+        }
+
+        function onPointerMove(e) {
+          if (!pointer.down) return;
+          const dx = e.clientX - pointer.x;
+          const dy = e.clientY - pointer.y;
+          const sensitivity = 0.0036;
+          camera.yawTarget = pointer.yaw - dx * sensitivity;
+          camera.pitchTarget = clamp(pointer.pitch - dy * sensitivity, 0.10, 0.58);
+          pointer.lastInteraction = performance.now();
+        }
+
+        function onPointerUp(e) {
+          pointer.down = false;
+          canvas.releasePointerCapture?.(e.pointerId);
+        }
+
+        function onWheel(e) {
+          e.preventDefault();
+          const delta = Math.sign(e.deltaY);
+          camera.radiusTarget = clamp(camera.radiusTarget * (1 + delta * 0.08), 8.0, 20.0);
+          pointer.lastInteraction = performance.now();
+        }
+
+        canvas.addEventListener("pointerdown", onPointerDown, { passive: true });
+        window.addEventListener("pointermove", onPointerMove, { passive: true });
+        window.addEventListener("pointerup", onPointerUp, { passive: true });
+        canvas.addEventListener("wheel", onWheel, { passive: false });
+        canvas.addEventListener("dblclick", () => resetCamera(), { passive: true });
+
+        function resetCamera() {
+          camera.yawTarget = 0.45;
+          camera.pitchTarget = 0.28;
+          camera.radiusTarget = 12.5;
+          camera.auto = !prefersReducedMotion;
+          ui.toggleAuto.textContent = camera.auto ? "Auto: on" : "Auto: off";
+        }
+
+        ui.reset.addEventListener("click", resetCamera);
+        ui.toggleAuto.addEventListener("click", () => {
+          camera.auto = !camera.auto;
+          ui.toggleAuto.textContent = camera.auto ? "Auto: on" : "Auto: off";
+        });
+
+        window.addEventListener("keydown", (e) => {
+          if (e.code === "Space") {
+            e.preventDefault();
+            camera.auto = !camera.auto;
+            ui.toggleAuto.textContent = camera.auto ? "Auto: on" : "Auto: off";
+          }
+        });
+
+        const state = {
+          fishCount: Number(ui.fishCount.value),
+          clarity: Number(ui.clarity.value),
+          ripples: Number(ui.ripples.value),
+          tod: Number(ui.tod.value) / 24,
+        };
+
+        function formatTimeOfDay(tod01) {
+          const t = ((tod01 % 1) + 1) % 1;
+          const totalMinutes = Math.floor(t * 24 * 60 + 0.5);
+          const hh = Math.floor(totalMinutes / 60) % 24;
+          const mm = totalMinutes % 60;
+          return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+        }
+
+        function syncUI() {
+          ui.fishCountVal.textContent = String(state.fishCount);
+          ui.clarityVal.textContent = state.clarity.toFixed(2);
+          ui.ripplesVal.textContent = state.ripples.toFixed(2);
+          ui.todVal.textContent = formatTimeOfDay(state.tod);
+        }
+        syncUI();
+
+        ui.fishCount.addEventListener("input", () => {
+          state.fishCount = Number(ui.fishCount.value);
+          syncUI();
+        });
+        ui.clarity.addEventListener("input", () => {
+          state.clarity = Number(ui.clarity.value);
+          syncUI();
+        });
+        ui.ripples.addEventListener("input", () => {
+          state.ripples = Number(ui.ripples.value);
+          syncUI();
+        });
+        ui.tod.addEventListener("input", () => {
+          state.tod = Number(ui.tod.value) / 24;
+          syncUI();
+        });
+
+        function computeSunDir(tod01) {
+          const phase = (tod01 - 0.25) * TAU;
+          const y = Math.sin(phase) * 0.95;
+          const horiz = Math.sqrt(Math.max(0, 1 - y * y));
+          const az = 0.9 + tod01 * TAU * 0.08;
+          return v3.norm([Math.cos(az) * horiz, y, Math.sin(az) * horiz]);
+        }
+
+        function mulberry32(seed) {
+          let t = seed >>> 0;
+          return () => {
+            t += 0x6d2b79f5;
+            let x = Math.imul(t ^ (t >>> 15), 1 | t);
+            x ^= x + Math.imul(x ^ (x >>> 7), 61 | x);
+            return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+          };
+        }
+
+        const rng = mulberry32(0x1234a11);
+        const fish = Array.from({ length: 28 }, (_, i) => {
+          const radius = lerp(1.2, POND_RADIUS * 0.74, Math.pow(rng(), 0.75));
+          const speed = lerp(0.18, 0.46, rng()) * (rng() < 0.5 ? -1 : 1);
+          const phase = rng() * TAU;
+          const depth = lerp(-0.35, -1.85, Math.pow(rng(), 0.8));
+          const size = lerp(0.70, 1.25, Math.pow(rng(), 1.3));
+          return { radius, speed, phase, depth, size, seed: rng(), bank: 0 };
+        });
+
+        const pads = Array.from({ length: 10 }, (_, i) => {
+          const r = lerp(0.9, POND_RADIUS * 0.55, Math.pow(rng(), 0.8));
+          const ang = rng() * TAU;
+          const x = Math.cos(ang) * r;
+          const z = Math.sin(ang) * r;
+          const s = lerp(0.55, 1.05, Math.pow(rng(), 1.2));
+          return { x, z, s, seed: rng() };
+        });
+
+        function createFBO(width, height) {
+          const tex = gl.createTexture();
+          gl.bindTexture(gl.TEXTURE_2D, tex);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+
+          const depthRb = gl.createRenderbuffer();
+          gl.bindRenderbuffer(gl.RENDERBUFFER, depthRb);
+          gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, width, height);
+
+          const fb = gl.createFramebuffer();
+          gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+          gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+          gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthRb);
+
+          const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+          gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+          gl.bindTexture(gl.TEXTURE_2D, null);
+          gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+
+          if (status !== gl.FRAMEBUFFER_COMPLETE) {
+            throw new Error("Framebuffer is not complete.");
+          }
+          return { fb, tex, depthRb, width, height };
+        }
+
+        let dpr = 1;
+        let width = 1;
+        let height = 1;
+        let sceneFbo = null;
+
+        function resize() {
+          const dprCap = 2.0;
+          dpr = Math.min(window.devicePixelRatio || 1, dprCap);
+          width = Math.max(1, Math.floor(canvas.clientWidth * dpr));
+          height = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+          if (canvas.width !== width || canvas.height !== height) {
+            canvas.width = width;
+            canvas.height = height;
+          }
+
+          if (!sceneFbo || sceneFbo.width !== width || sceneFbo.height !== height) {
+            if (sceneFbo) {
+              gl.deleteFramebuffer(sceneFbo.fb);
+              gl.deleteTexture(sceneFbo.tex);
+              gl.deleteRenderbuffer(sceneFbo.depthRb);
+            }
+            sceneFbo = createFBO(width, height);
+          }
+        }
+
+        window.addEventListener("resize", resize, { passive: true });
+        try {
+          resize();
+        } catch (err) {
+          showStatus(err?.message ?? String(err));
+          return;
+        }
+
+        const view = m4.identity();
+        const proj = m4.identity();
+        let viewProj = m4.identity();
+
+        function setAttrib2(vbo, loc) {
+          gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+          gl.enableVertexAttribArray(loc);
+          gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+        }
+
+        function setAttrib3(vbo, loc, strideBytes, offsetBytes) {
+          gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+          gl.enableVertexAttribArray(loc);
+          gl.vertexAttribPointer(loc, 3, gl.FLOAT, false, strideBytes, offsetBytes);
+        }
+
+        function setAttrib1(vbo, loc, strideBytes, offsetBytes) {
+          gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+          gl.enableVertexAttribArray(loc);
+          gl.vertexAttribPointer(loc, 1, gl.FLOAT, false, strideBytes, offsetBytes);
+        }
+
+        function setAttrib2S(vbo, loc, strideBytes, offsetBytes) {
+          gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+          gl.enableVertexAttribArray(loc);
+          gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, strideBytes, offsetBytes);
+        }
+
+        function render(nowMs) {
+          const time = nowMs / 1000;
+          const dt = Math.min(0.05, (render.lastTime ? (nowMs - render.lastTime) / 1000 : 1 / 60));
+          render.lastTime = nowMs;
+
+          // Camera smoothing.
+          camera.yaw = lerp(camera.yaw, camera.yawTarget, 1 - Math.pow(0.0008, dt * 60));
+          camera.pitch = lerp(camera.pitch, camera.pitchTarget, 1 - Math.pow(0.0008, dt * 60));
+          camera.radius = lerp(camera.radius, camera.radiusTarget, 1 - Math.pow(0.0009, dt * 60));
+
+          if (camera.auto && !prefersReducedMotion) {
+            const idle = performance.now() - pointer.lastInteraction;
+            const w = smoothstep(0, 1800, idle);
+            camera.yawTarget += dt * 0.12 * w;
+          }
+
+          const sunDir = computeSunDir(state.tod);
+
+          const h = Math.cos(camera.pitch) * camera.radius;
+          const eye = [Math.cos(camera.yaw) * h, camera.height + Math.sin(camera.pitch) * camera.radius, Math.sin(camera.yaw) * h];
+          const target = [0, -0.6, 0];
+
+          const aspect = width / height;
+          const viewM = m4.lookAt(eye, target, [0, 1, 0]);
+          view.set(viewM);
+          proj.set(m4.perspective(FOVY, aspect, NEAR, FAR));
+          viewProj = m4.multiply(proj, view);
+
+          // --- Pass 1: render underwater scene into FBO (RGB = color, A = viewZ/FAR).
+          gl.bindFramebuffer(gl.FRAMEBUFFER, sceneFbo.fb);
+          gl.viewport(0, 0, sceneFbo.width, sceneFbo.height);
+          gl.disable(gl.BLEND);
+          gl.enable(gl.DEPTH_TEST);
+          gl.depthFunc(gl.LEQUAL);
+          gl.enable(gl.CULL_FACE);
+          gl.cullFace(gl.BACK);
+          gl.frontFace(gl.CCW);
+          gl.clearColor(0.01, 0.02, 0.03, 1);
+          gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+          // Pond bed
+          gl.useProgram(bedProgramScene);
+          const bedLoc = {
+            a_pos: gl.getAttribLocation(bedProgramScene, "a_pos"),
+            u_viewProj: gl.getUniformLocation(bedProgramScene, "u_viewProj"),
+            u_view: gl.getUniformLocation(bedProgramScene, "u_view"),
+            u_time: gl.getUniformLocation(bedProgramScene, "u_time"),
+            u_pondRadius: gl.getUniformLocation(bedProgramScene, "u_pondRadius"),
+            u_pondDepth: gl.getUniformLocation(bedProgramScene, "u_pondDepth"),
+            u_edgeDepth: gl.getUniformLocation(bedProgramScene, "u_edgeDepth"),
+          };
+          setAttrib2(pondGrid.vbo, bedLoc.a_pos);
+          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, pondGrid.ebo);
+          gl.uniformMatrix4fv(bedLoc.u_viewProj, false, viewProj);
+          gl.uniformMatrix4fv(bedLoc.u_view, false, view);
+          gl.uniform1f(bedLoc.u_time, time);
+          gl.uniform1f(bedLoc.u_pondRadius, POND_RADIUS);
+          gl.uniform1f(bedLoc.u_pondDepth, POND_DEPTH);
+          gl.uniform1f(bedLoc.u_edgeDepth, EDGE_DEPTH);
+
+          const bedFragLoc = {
+            u_sunDir: gl.getUniformLocation(bedProgramScene, "u_sunDir"),
+            u_cameraPos: gl.getUniformLocation(bedProgramScene, "u_cameraPos"),
+            u_time: gl.getUniformLocation(bedProgramScene, "u_time"),
+            u_far: gl.getUniformLocation(bedProgramScene, "u_far"),
+            u_pondRadius: gl.getUniformLocation(bedProgramScene, "u_pondRadius"),
+          };
+          gl.uniform3f(bedFragLoc.u_sunDir, sunDir[0], sunDir[1], sunDir[2]);
+          gl.uniform3f(bedFragLoc.u_cameraPos, eye[0], eye[1], eye[2]);
+          gl.uniform1f(bedFragLoc.u_time, time);
+          gl.uniform1f(bedFragLoc.u_far, FAR);
+          gl.uniform1f(bedFragLoc.u_pondRadius, POND_RADIUS);
+          gl.drawElements(gl.TRIANGLES, pondGrid.indexCount, gl.UNSIGNED_SHORT, 0);
+
+          // Fish
+          gl.useProgram(fishProgramScene);
+          const fishLoc = {
+            a_pos: gl.getAttribLocation(fishProgramScene, "a_pos"),
+            a_n: gl.getAttribLocation(fishProgramScene, "a_n"),
+            a_uv: gl.getAttribLocation(fishProgramScene, "a_uv"),
+            a_tail: gl.getAttribLocation(fishProgramScene, "a_tail"),
+            u_viewProj: gl.getUniformLocation(fishProgramScene, "u_viewProj"),
+            u_view: gl.getUniformLocation(fishProgramScene, "u_view"),
+            u_model: gl.getUniformLocation(fishProgramScene, "u_model"),
+            u_time: gl.getUniformLocation(fishProgramScene, "u_time"),
+            u_tailAmp: gl.getUniformLocation(fishProgramScene, "u_tailAmp"),
+            u_tailFreq: gl.getUniformLocation(fishProgramScene, "u_tailFreq"),
+            u_phase: gl.getUniformLocation(fishProgramScene, "u_phase"),
+          };
+          gl.bindBuffer(gl.ARRAY_BUFFER, fishMesh.vbo);
+          gl.enableVertexAttribArray(fishLoc.a_pos);
+          gl.vertexAttribPointer(fishLoc.a_pos, 3, gl.FLOAT, false, fishMesh.strideBytes, 0);
+          gl.enableVertexAttribArray(fishLoc.a_n);
+          gl.vertexAttribPointer(fishLoc.a_n, 3, gl.FLOAT, false, fishMesh.strideBytes, 12);
+          gl.enableVertexAttribArray(fishLoc.a_uv);
+          gl.vertexAttribPointer(fishLoc.a_uv, 2, gl.FLOAT, false, fishMesh.strideBytes, 24);
+          gl.enableVertexAttribArray(fishLoc.a_tail);
+          gl.vertexAttribPointer(fishLoc.a_tail, 1, gl.FLOAT, false, fishMesh.strideBytes, 32);
+          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, fishMesh.ebo);
+
+          gl.uniformMatrix4fv(fishLoc.u_viewProj, false, viewProj);
+          gl.uniformMatrix4fv(fishLoc.u_view, false, view);
+          gl.uniform1f(fishLoc.u_time, time);
+
+          const fishFragLoc = {
+            u_sunDir: gl.getUniformLocation(fishProgramScene, "u_sunDir"),
+            u_cameraPos: gl.getUniformLocation(fishProgramScene, "u_cameraPos"),
+            u_time: gl.getUniformLocation(fishProgramScene, "u_time"),
+            u_far: gl.getUniformLocation(fishProgramScene, "u_far"),
+            u_seed: gl.getUniformLocation(fishProgramScene, "u_seed"),
+          };
+          gl.uniform3f(fishFragLoc.u_sunDir, sunDir[0], sunDir[1], sunDir[2]);
+          gl.uniform3f(fishFragLoc.u_cameraPos, eye[0], eye[1], eye[2]);
+          gl.uniform1f(fishFragLoc.u_time, time);
+          gl.uniform1f(fishFragLoc.u_far, FAR);
+
+          const desiredCount = clamp(state.fishCount, 0, fish.length);
+          for (let i = 0; i < desiredCount; i++) {
+            const f = fish[i];
+            const t = time * f.speed + f.phase;
+            const x = Math.cos(t) * f.radius;
+            const z = Math.sin(t) * f.radius;
+            const vx = -Math.sin(t) * f.speed * f.radius;
+            const vz = Math.cos(t) * f.speed * f.radius;
+            const yaw = Math.atan2(vz, -vx);
+            const y = f.depth + Math.sin(time * 0.9 + f.seed * 10) * 0.05;
+
+            const model = m4.trsY([x, y, z], yaw, [f.size, f.size, f.size]);
+            gl.uniformMatrix4fv(fishLoc.u_model, false, model);
+
+            const tailAmp = 0.08 * (0.6 + 0.4 * state.ripples) * (0.85 + 0.3 * f.seed);
+            const tailFreq = 6.2 + 2.4 * f.seed;
+            gl.uniform1f(fishLoc.u_tailAmp, tailAmp);
+            gl.uniform1f(fishLoc.u_tailFreq, tailFreq);
+            gl.uniform1f(fishLoc.u_phase, f.seed * 50.0);
+            gl.uniform1f(fishFragLoc.u_seed, f.seed * 10.0);
+
+            gl.drawElements(gl.TRIANGLES, fishMesh.indexCount, gl.UNSIGNED_SHORT, 0);
+          }
+
+          // --- Pass 2: screen (sky, ground+rim, water, lily pads).
+          gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+          gl.viewport(0, 0, width, height);
+          gl.clearColor(0.02, 0.03, 0.05, 1);
+          gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+          // Sky
+          gl.disable(gl.DEPTH_TEST);
+          gl.disable(gl.CULL_FACE);
+          gl.useProgram(skyProgram);
+          const skyLoc = {
+            a_pos: gl.getAttribLocation(skyProgram, "a_pos"),
+            u_sunDir: gl.getUniformLocation(skyProgram, "u_sunDir"),
+            u_time: gl.getUniformLocation(skyProgram, "u_time"),
+          };
+          setAttrib2(fullscreenTri.vbo, skyLoc.a_pos);
+          gl.uniform3f(skyLoc.u_sunDir, sunDir[0], sunDir[1], sunDir[2]);
+          gl.uniform1f(skyLoc.u_time, time);
+          gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+          // Ground + rim
+          gl.enable(gl.DEPTH_TEST);
+          gl.depthFunc(gl.LEQUAL);
+          gl.enable(gl.CULL_FACE);
+          gl.cullFace(gl.BACK);
+          gl.disable(gl.BLEND);
+          gl.useProgram(groundProgram);
+
+          const groundLoc = {
+            a_pos: gl.getAttribLocation(groundProgram, "a_pos"),
+            a_n: gl.getAttribLocation(groundProgram, "a_n"),
+            u_viewProj: gl.getUniformLocation(groundProgram, "u_viewProj"),
+            u_sunDir: gl.getUniformLocation(groundProgram, "u_sunDir"),
+            u_cameraPos: gl.getUniformLocation(groundProgram, "u_cameraPos"),
+            u_time: gl.getUniformLocation(groundProgram, "u_time"),
+            u_pondRadius: gl.getUniformLocation(groundProgram, "u_pondRadius"),
+            u_rimOuter: gl.getUniformLocation(groundProgram, "u_rimOuter"),
+          };
+          gl.uniformMatrix4fv(groundLoc.u_viewProj, false, viewProj);
+          gl.uniform3f(groundLoc.u_sunDir, sunDir[0], sunDir[1], sunDir[2]);
+          gl.uniform3f(groundLoc.u_cameraPos, eye[0], eye[1], eye[2]);
+          gl.uniform1f(groundLoc.u_time, time);
+          gl.uniform1f(groundLoc.u_pondRadius, POND_RADIUS);
+          gl.uniform1f(groundLoc.u_rimOuter, RIM_OUTER);
+
+          // Ground grid
+          gl.bindBuffer(gl.ARRAY_BUFFER, groundGrid.vbo);
+          gl.enableVertexAttribArray(groundLoc.a_pos);
+          gl.vertexAttribPointer(groundLoc.a_pos, 3, gl.FLOAT, false, groundGrid.strideBytes, 0);
+          gl.enableVertexAttribArray(groundLoc.a_n);
+          gl.vertexAttribPointer(groundLoc.a_n, 3, gl.FLOAT, false, groundGrid.strideBytes, 12);
+          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, groundGrid.ebo);
+          gl.drawElements(gl.TRIANGLES, groundGrid.indexCount, gl.UNSIGNED_SHORT, 0);
+
+          // Rim mesh
+          gl.bindBuffer(gl.ARRAY_BUFFER, rimMesh.vbo);
+          gl.enableVertexAttribArray(groundLoc.a_pos);
+          gl.vertexAttribPointer(groundLoc.a_pos, 3, gl.FLOAT, false, rimMesh.strideBytes, 0);
+          gl.enableVertexAttribArray(groundLoc.a_n);
+          gl.vertexAttribPointer(groundLoc.a_n, 3, gl.FLOAT, false, rimMesh.strideBytes, 12);
+          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, rimMesh.ebo);
+          gl.drawElements(gl.TRIANGLES, rimMesh.indexCount, gl.UNSIGNED_SHORT, 0);
+
+          // Water (samples underwater scene texture)
+          gl.useProgram(waterProgram);
+          const waterLoc = {
+            a_pos: gl.getAttribLocation(waterProgram, "a_pos"),
+            u_viewProj: gl.getUniformLocation(waterProgram, "u_viewProj"),
+            u_view: gl.getUniformLocation(waterProgram, "u_view"),
+            u_time: gl.getUniformLocation(waterProgram, "u_time"),
+            u_pondRadius: gl.getUniformLocation(waterProgram, "u_pondRadius"),
+            u_ripples: gl.getUniformLocation(waterProgram, "u_ripples"),
+            u_sceneTex: gl.getUniformLocation(waterProgram, "u_sceneTex"),
+            u_resolution: gl.getUniformLocation(waterProgram, "u_resolution"),
+            u_sunDir: gl.getUniformLocation(waterProgram, "u_sunDir"),
+            u_cameraPos: gl.getUniformLocation(waterProgram, "u_cameraPos"),
+            u_far: gl.getUniformLocation(waterProgram, "u_far"),
+            u_clarity: gl.getUniformLocation(waterProgram, "u_clarity"),
+          };
+          setAttrib2(waterGrid.vbo, waterLoc.a_pos);
+          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, waterGrid.ebo);
+          gl.uniformMatrix4fv(waterLoc.u_viewProj, false, viewProj);
+          gl.uniformMatrix4fv(waterLoc.u_view, false, view);
+          gl.uniform1f(waterLoc.u_time, time);
+          gl.uniform1f(waterLoc.u_pondRadius, POND_RADIUS);
+          gl.uniform1f(waterLoc.u_ripples, state.ripples);
+          gl.uniform2f(waterLoc.u_resolution, width, height);
+          gl.uniform3f(waterLoc.u_sunDir, sunDir[0], sunDir[1], sunDir[2]);
+          gl.uniform3f(waterLoc.u_cameraPos, eye[0], eye[1], eye[2]);
+          gl.uniform1f(waterLoc.u_far, FAR);
+          gl.uniform1f(waterLoc.u_clarity, state.clarity);
+          gl.activeTexture(gl.TEXTURE0);
+          gl.bindTexture(gl.TEXTURE_2D, sceneFbo.tex);
+          gl.uniform1i(waterLoc.u_sceneTex, 0);
+          gl.drawElements(gl.TRIANGLES, waterGrid.indexCount, gl.UNSIGNED_SHORT, 0);
+
+          // Lily pads
+          gl.enable(gl.BLEND);
+          gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+          gl.depthMask(false);
+          gl.useProgram(padProgram);
+          const padLoc = {
+            a_pos: gl.getAttribLocation(padProgram, "a_pos"),
+            a_uv: gl.getAttribLocation(padProgram, "a_uv"),
+            u_viewProj: gl.getUniformLocation(padProgram, "u_viewProj"),
+            u_model: gl.getUniformLocation(padProgram, "u_model"),
+            u_sunDir: gl.getUniformLocation(padProgram, "u_sunDir"),
+            u_cameraPos: gl.getUniformLocation(padProgram, "u_cameraPos"),
+            u_time: gl.getUniformLocation(padProgram, "u_time"),
+          };
+          gl.uniformMatrix4fv(padLoc.u_viewProj, false, viewProj);
+          gl.uniform3f(padLoc.u_sunDir, sunDir[0], sunDir[1], sunDir[2]);
+          gl.uniform3f(padLoc.u_cameraPos, eye[0], eye[1], eye[2]);
+          gl.uniform1f(padLoc.u_time, time);
+          gl.bindBuffer(gl.ARRAY_BUFFER, padMesh.vbo);
+          gl.enableVertexAttribArray(padLoc.a_pos);
+          gl.vertexAttribPointer(padLoc.a_pos, 3, gl.FLOAT, false, padMesh.strideBytes, 0);
+          gl.enableVertexAttribArray(padLoc.a_uv);
+          gl.vertexAttribPointer(padLoc.a_uv, 2, gl.FLOAT, false, padMesh.strideBytes, 12);
+          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, padMesh.ebo);
+
+          for (let i = 0; i < pads.length; i++) {
+            const p = pads[i];
+            const bob = Math.sin(time * 0.9 + p.seed * 10.0) * 0.007 * (0.2 + 0.8 * state.ripples);
+            const model = m4.trsY([p.x, 0.02 + bob, p.z], p.seed * TAU, [p.s, 1, p.s]);
+            gl.uniformMatrix4fv(padLoc.u_model, false, model);
+            gl.drawElements(gl.TRIANGLES, padMesh.indexCount, gl.UNSIGNED_SHORT, 0);
+          }
+
+          gl.depthMask(true);
+          gl.disable(gl.BLEND);
+
+          requestAnimationFrame(render);
+        }
+        render.lastTime = 0;
+
+        // A small helper: smoothstep for camera auto orbit weight.
+        function smoothstep(edge0, edge1, x) {
+          const t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
+          return t * t * (3 - 2 * t);
+        }
+
+        requestAnimationFrame(render);
+      })();
+    </script>
+  </body>
+</html>

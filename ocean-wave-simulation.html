@@ -1,0 +1,1762 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ocean Wave Simulation</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg0: #04070d;
+        --bg1: #060b16;
+        --panel: rgba(10, 18, 30, 0.55);
+        --panel-border: rgba(160, 210, 255, 0.18);
+        --text: rgba(240, 248, 255, 0.92);
+        --muted: rgba(240, 248, 255, 0.68);
+        --accent: rgba(120, 210, 255, 0.95);
+        --accent2: rgba(120, 255, 215, 0.85);
+        --shadow: rgba(0, 0, 0, 0.35);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: radial-gradient(1200px 900px at 70% 10%, rgba(70, 120, 180, 0.14), transparent 60%),
+          linear-gradient(180deg, var(--bg1), var(--bg0));
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji",
+          "Segoe UI Emoji";
+      }
+
+      #gl {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      .hud {
+        position: fixed;
+        left: 18px;
+        bottom: 18px;
+        width: min(420px, calc(100vw - 36px));
+        padding: 16px 16px 14px;
+        border-radius: 16px;
+        border: 1px solid var(--panel-border);
+        background: var(--panel);
+        box-shadow: 0 18px 55px var(--shadow);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        user-select: none;
+      }
+
+      .title {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 10px;
+      }
+
+      .title h1 {
+        margin: 0;
+        font-size: 16px;
+        letter-spacing: 0.3px;
+        font-weight: 650;
+        color: var(--text);
+      }
+
+      .badge {
+        font-size: 11px;
+        padding: 5px 9px;
+        border-radius: 999px;
+        border: 1px solid rgba(140, 220, 255, 0.22);
+        color: rgba(210, 245, 255, 0.86);
+        background: rgba(10, 20, 35, 0.35);
+      }
+
+      .subtitle {
+        margin: 0 0 14px;
+        font-size: 12px;
+        line-height: 1.35;
+        color: var(--muted);
+      }
+
+      .controls {
+        display: grid;
+        gap: 11px;
+      }
+
+      .control {
+        display: grid;
+        gap: 6px;
+      }
+
+      label {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 12px;
+        color: rgba(240, 248, 255, 0.86);
+        font-size: 12px;
+      }
+
+      .value {
+        color: rgba(240, 248, 255, 0.75);
+        font-variant-numeric: tabular-nums;
+      }
+
+      input[type="range"] {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 100%;
+        height: 10px;
+        border-radius: 999px;
+        background: linear-gradient(
+          90deg,
+          rgba(120, 255, 215, 0.75),
+          rgba(120, 210, 255, 0.85),
+          rgba(165, 205, 255, 0.45)
+        );
+        outline: none;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+      }
+
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 18px;
+        height: 18px;
+        border-radius: 999px;
+        background: radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.95), rgba(120, 210, 255, 0.9));
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
+      }
+
+      input[type="range"]::-moz-range-thumb {
+        width: 18px;
+        height: 18px;
+        border-radius: 999px;
+        background: radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.95), rgba(120, 210, 255, 0.9));
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
+      }
+
+      .hint {
+        margin: 12px 0 0;
+        font-size: 11px;
+        color: rgba(240, 248, 255, 0.6);
+      }
+
+      .hint kbd {
+        font: inherit;
+        padding: 1px 6px;
+        border-radius: 7px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        background: rgba(0, 0, 0, 0.16);
+        color: rgba(240, 248, 255, 0.78);
+      }
+
+      .status {
+        position: fixed;
+        top: 18px;
+        right: 18px;
+        max-width: min(520px, calc(100vw - 36px));
+        padding: 12px 14px;
+        border-radius: 14px;
+        border: 1px solid rgba(255, 210, 210, 0.18);
+        background: rgba(40, 12, 14, 0.5);
+        box-shadow: 0 16px 55px rgba(0, 0, 0, 0.35);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        color: rgba(255, 235, 235, 0.92);
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="gl" aria-label="Simulation de vagues océaniques"></canvas>
+
+    <div class="status" id="status" role="status" aria-live="polite"></div>
+
+    <section class="hud" aria-label="Contrôles">
+      <div class="title">
+        <h1>Ocean Wave Simulation</h1>
+        <div class="badge">WebGL</div>
+      </div>
+      <p class="subtitle">Vagues réalistes, cycle jour/nuit et bateau flottant.</p>
+
+      <div class="controls">
+        <div class="control">
+          <label for="wind">
+            <span>Vitesse du vent</span>
+            <span class="value" id="windVal">12 m/s</span>
+          </label>
+          <input id="wind" type="range" min="0" max="40" step="1" value="12" />
+        </div>
+
+        <div class="control">
+          <label for="height">
+            <span>Hauteur des vagues</span>
+            <span class="value" id="heightVal">1.00×</span>
+          </label>
+          <input id="height" type="range" min="0.2" max="2.6" step="0.01" value="1.0" />
+        </div>
+
+        <div class="control">
+          <label for="tod">
+            <span>Heure du jour</span>
+            <span class="value" id="todVal">16:00</span>
+          </label>
+          <input id="tod" type="range" min="0" max="24" step="0.01" value="16" />
+        </div>
+
+        <div class="control">
+          <label for="cycle">
+            <span>Vitesse du cycle</span>
+            <span class="value" id="cycleVal">×0.80</span>
+          </label>
+          <input id="cycle" type="range" min="0" max="2" step="0.01" value="0.8" />
+        </div>
+      </div>
+
+      <p class="hint">Astuce : <kbd>clic</kbd> + glisser pour la caméra. Vitesse à 0 = pause.</p>
+    </section>
+
+    <script>
+      (() => {
+        const canvas = document.getElementById("gl");
+        const statusEl = document.getElementById("status");
+
+        const windInput = document.getElementById("wind");
+        const heightInput = document.getElementById("height");
+        const todInput = document.getElementById("tod");
+        const cycleInput = document.getElementById("cycle");
+        const windVal = document.getElementById("windVal");
+        const heightVal = document.getElementById("heightVal");
+        const todVal = document.getElementById("todVal");
+        const cycleVal = document.getElementById("cycleVal");
+
+        const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+
+        function showStatus(message) {
+          statusEl.textContent = message;
+          statusEl.style.display = "block";
+        }
+
+        const gl =
+          canvas.getContext("webgl", { antialias: true, alpha: false, depth: true, stencil: false }) ??
+          canvas.getContext("experimental-webgl", { antialias: true, alpha: false, depth: true, stencil: false });
+        if (!gl) {
+          showStatus("WebGL n’est pas disponible sur ce navigateur/appareil.");
+          return;
+        }
+
+        const WATER_VERT_SRC = `
+precision highp float;
+
+attribute vec2 a_pos;
+
+uniform mat4 u_viewProj;
+uniform float u_time;
+
+#define N 5
+uniform float u_amp[N];
+uniform float u_k[N];
+uniform float u_w[N];
+uniform float u_q[N];
+uniform vec2 u_dir[N];
+
+varying vec3 v_pos;
+varying vec3 v_n;
+varying vec2 v_base;
+
+void main() {
+  vec3 pos = vec3(a_pos.x, 0.0, a_pos.y);
+  vec3 dx = vec3(1.0, 0.0, 0.0);
+  vec3 dz = vec3(0.0, 0.0, 1.0);
+
+  for (int i = 0; i < N; i++) {
+    float A = u_amp[i];
+    float k = u_k[i];
+    float w = u_w[i];
+    float Q = u_q[i];
+    vec2 D = normalize(u_dir[i]);
+
+    float phase = k * dot(D, a_pos) + w * u_time;
+    float c = cos(phase);
+    float s = sin(phase);
+
+    pos.x += D.x * (Q * A) * c;
+    pos.z += D.y * (Q * A) * c;
+    pos.y += A * s;
+
+    float QAks = (Q * A * k) * s;
+
+    dx.x -= D.x * D.x * QAks;
+    dx.y += D.x * (A * k) * c;
+    dx.z -= D.x * D.y * QAks;
+
+    dz.x -= D.x * D.y * QAks;
+    dz.y += D.y * (A * k) * c;
+    dz.z -= D.y * D.y * QAks;
+  }
+
+  vec3 n = normalize(cross(dz, dx));
+  v_pos = pos;
+  v_n = n;
+  v_base = a_pos;
+  gl_Position = u_viewProj * vec4(pos, 1.0);
+}
+        `.trim();
+
+        const WATER_FRAG_SRC = `
+precision highp float;
+
+varying vec3 v_pos;
+varying vec3 v_n;
+varying vec2 v_base;
+
+uniform vec3 u_cameraPos;
+uniform vec3 u_sunDir;
+uniform vec3 u_moonDir;
+uniform vec2 u_windDir;
+uniform float u_wind;
+uniform vec2 u_resolution;
+uniform float u_time;
+uniform float u_heightScale;
+
+const float PI = 3.141592653589793;
+const float TAU = 6.283185307179586;
+
+float hash12(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  float a = hash12(i);
+  float b = hash12(i + vec2(1.0, 0.0));
+  float c = hash12(i + vec2(0.0, 1.0));
+  float d = hash12(i + vec2(1.0, 1.0));
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+float fbm(vec2 p) {
+  float v = 0.0;
+  float a = 0.5;
+  mat2 m = mat2(1.6, 1.2, -1.2, 1.6);
+  for (int i = 0; i < 4; i++) {
+    v += a * noise(p);
+    p = m * p + 0.11;
+    a *= 0.55;
+  }
+  return v;
+}
+
+vec3 acesTonemap(vec3 x) {
+  const float a = 2.51;
+  const float b = 0.03;
+  const float c = 2.43;
+  const float d = 0.59;
+  const float e = 0.14;
+  return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+}
+
+vec3 skyColor(vec3 dir) {
+  dir = normalize(dir);
+
+  float sunAlt = u_sunDir.y;
+  float day = smoothstep(-0.08, 0.10, sunAlt);
+  float twilight = smoothstep(-0.20, 0.05, sunAlt) - smoothstep(0.05, 0.32, sunAlt);
+  twilight = clamp(twilight * 1.2, 0.0, 1.0);
+
+  float t = pow(clamp(dir.y * 0.5 + 0.5, 0.0, 1.0), 0.55);
+
+  vec3 nightZenith = vec3(0.003, 0.007, 0.018);
+  vec3 nightHorizon = vec3(0.012, 0.020, 0.035);
+
+  vec3 dayZenith = vec3(0.10, 0.29, 0.56);
+  vec3 dayHorizon = vec3(0.62, 0.78, 0.92);
+
+  vec3 sunsetZenith = vec3(0.16, 0.06, 0.26);
+  vec3 sunsetHorizon = vec3(1.10, 0.46, 0.16);
+
+  vec3 baseNight = mix(nightHorizon, nightZenith, t);
+  vec3 baseDay = mix(dayHorizon, dayZenith, t);
+  vec3 baseSunset = mix(sunsetHorizon, sunsetZenith, t);
+
+  vec3 col = mix(baseNight, baseDay, day);
+  col = mix(col, baseSunset, twilight);
+
+  // Soleil (disque + halo)
+  float sunVis = smoothstep(-0.02, 0.06, sunAlt);
+  vec3 sunCol = mix(vec3(1.25, 0.55, 0.18), vec3(1.0, 0.98, 0.92), clamp((sunAlt + 0.02) * 3.0, 0.0, 1.0));
+  float sunCos = max(dot(dir, normalize(u_sunDir)), 0.0);
+  float sunDisk = pow(sunCos, 1800.0);
+  float sunHalo = pow(sunCos, 80.0);
+  col += sunCol * (sunDisk * 8.0 + sunHalo * 0.35) * sunVis;
+
+  // Lune (disque + halo)
+  float moonVis = smoothstep(-0.06, 0.18, u_moonDir.y) * (1.0 - day);
+  vec3 moonCol = vec3(0.60, 0.72, 1.0);
+  float moonCos = max(dot(dir, normalize(u_moonDir)), 0.0);
+  float moonDisk = pow(moonCos, 1300.0);
+  float moonHalo = pow(moonCos, 45.0);
+  col += moonCol * (moonDisk * 1.8 + moonHalo * 0.08) * moonVis;
+
+  // Nuages fins (jour)
+  vec2 cuv = dir.xz / max(0.12, dir.y + 1.35);
+  cuv += vec2(u_time * 0.004, u_time * 0.002);
+  float clouds = fbm(cuv * 1.6);
+  float cloudMask = smoothstep(0.55, 0.80, clouds) * day * smoothstep(0.00, 0.65, dir.y);
+  col = mix(col, col + vec3(1.0) * 0.12, cloudMask * 0.85);
+
+  // Étoiles (nuit)
+  float starFade = clamp((0.35 - day) / 0.35, 0.0, 1.0) * smoothstep(-0.05, 0.25, dir.y);
+  vec2 suv = vec2(atan(dir.z, dir.x) / TAU, asin(clamp(dir.y, -1.0, 1.0)) / PI);
+  suv += vec2(u_time * 0.0007, 0.0);
+  float s1 = hash12(floor(suv * vec2(1500.0, 750.0)));
+  float s2 = hash12(floor(suv * vec2(900.0, 420.0) + 11.7));
+  float star1 = smoothstep(0.9972, 1.0, s1);
+  float star2 = smoothstep(0.9963, 1.0, s2) * 0.6;
+  col += vec3(1.2, 1.3, 1.45) * (star1 + star2) * (0.55 * starFade);
+
+  return max(col, vec3(0.0));
+}
+
+float D_GGX(float NoH, float roughness) {
+  float a = roughness * roughness;
+  float a2 = a * a;
+  float d = (NoH * NoH) * (a2 - 1.0) + 1.0;
+  return a2 / max(PI * d * d, 1e-5);
+}
+
+float G_Smith(float NoV, float NoL, float roughness) {
+  float r = roughness + 1.0;
+  float k = (r * r) / 8.0;
+  float gv = NoV / (NoV * (1.0 - k) + k);
+  float gl = NoL / (NoL * (1.0 - k) + k);
+  return gv * gl;
+}
+
+vec3 F_Schlick(vec3 F0, float VoH) {
+  float f = pow(1.0 - VoH, 5.0);
+  return F0 + (1.0 - F0) * f;
+}
+
+void main() {
+  vec3 n = normalize(v_n);
+  vec3 viewDir = normalize(u_cameraPos - v_pos);
+
+  float NoV = clamp(dot(n, viewDir), 0.0, 1.0);
+  vec3 F0 = vec3(0.020);
+  vec3 F_env = F0 + (1.0 - F0) * pow(1.0 - NoV, 5.0);
+
+  float wind = clamp(u_wind, 0.0, 1.0);
+  float roughness = mix(0.035, 0.14, wind);
+
+  // Détails de normal (petites rides) en fonction du vent
+  vec2 wd = normalize(u_windDir);
+  vec2 wd2 = vec2(-wd.y, wd.x);
+  vec2 p = v_base;
+  float rippleAmp = mix(0.010, 0.045, wind);
+  float rippleFreq1 = 2.10;
+  float rippleFreq2 = 3.60;
+  float rippleFreq3 = 5.20;
+  float rippleSpeed = mix(0.65, 1.55, wind);
+  float dhdx = 0.0;
+  float dhdz = 0.0;
+  float ph1 = dot(wd, p) * rippleFreq1 + u_time * (rippleSpeed * 0.85);
+  float ph2 = dot(wd2, p) * rippleFreq2 + u_time * (rippleSpeed * 1.35 + 0.7);
+  float ph3 = dot(normalize(wd + wd2 * 0.55), p) * rippleFreq3 + u_time * (rippleSpeed * 1.75 + 2.2);
+  dhdx += cos(ph1) * rippleAmp * rippleFreq1 * wd.x;
+  dhdz += cos(ph1) * rippleAmp * rippleFreq1 * wd.y;
+  dhdx += cos(ph2) * rippleAmp * 0.72 * rippleFreq2 * wd2.x;
+  dhdz += cos(ph2) * rippleAmp * 0.72 * rippleFreq2 * wd2.y;
+  vec2 w3 = normalize(wd + wd2 * 0.55);
+  dhdx += cos(ph3) * rippleAmp * 0.55 * rippleFreq3 * w3.x;
+  dhdz += cos(ph3) * rippleAmp * 0.55 * rippleFreq3 * w3.y;
+  n = normalize(n + vec3(-dhdx, 0.0, -dhdz) * mix(0.9, 1.9, wind));
+  NoV = clamp(dot(n, viewDir), 0.0, 1.0);
+  F_env = F0 + (1.0 - F0) * pow(1.0 - NoV, 5.0);
+
+  // Environnement (ciel) + réflexions
+  vec3 reflDir = reflect(-viewDir, n);
+  vec3 reflDirBlur = normalize(mix(reflDir, n, roughness * 0.40));
+  vec3 reflection = mix(skyColor(reflDirBlur), skyColor(normalize(mix(reflDirBlur, vec3(0.0, 1.0, 0.0), roughness * 0.15))), roughness * 0.35);
+
+  float sunAlt = u_sunDir.y;
+  float day = smoothstep(-0.08, 0.10, sunAlt);
+  float sunVis = smoothstep(-0.02, 0.06, sunAlt);
+  vec3 sunCol = mix(vec3(1.25, 0.55, 0.18), vec3(1.0, 0.98, 0.92), clamp((sunAlt + 0.02) * 3.0, 0.0, 1.0));
+  vec3 sunRadiance = sunCol * (8.0 * sunVis);
+
+  float moonVis = smoothstep(-0.06, 0.18, u_moonDir.y) * (1.0 - day);
+  vec3 moonRadiance = vec3(0.55, 0.70, 1.0) * (1.4 * moonVis);
+
+  vec3 Ls = normalize(u_sunDir);
+  vec3 Lm = normalize(u_moonDir);
+  float NoLs = max(dot(n, Ls), 0.0);
+  float NoLm = max(dot(n, Lm), 0.0);
+
+  // Spéculaire micro-facettes (soleil + lune)
+  vec3 spec = vec3(0.0);
+  if (NoLs > 0.0) {
+    vec3 H = normalize(viewDir + Ls);
+    float NoH = max(dot(n, H), 0.0);
+    float VoH = max(dot(viewDir, H), 0.0);
+    float D = D_GGX(NoH, roughness);
+    float G = G_Smith(NoV, NoLs, roughness);
+    vec3 F = F_Schlick(F0, VoH);
+    spec += (D * G) * F * (sunRadiance * NoLs) / max(4.0 * NoV * NoLs, 1e-4);
+  }
+  if (NoLm > 0.0) {
+    vec3 H = normalize(viewDir + Lm);
+    float NoH = max(dot(n, H), 0.0);
+    float VoH = max(dot(viewDir, H), 0.0);
+    float D = D_GGX(NoH, roughness);
+    float G = G_Smith(NoV, NoLm, roughness);
+    vec3 F = F_Schlick(F0, VoH);
+    spec += (D * G) * F * (moonRadiance * NoLm) / max(4.0 * NoV * NoLm, 1e-4);
+  }
+
+  // Couleur de l'eau (absorption + diffusion très légère)
+  vec3 deep = vec3(0.010, 0.070, 0.115);
+  vec3 shallow = vec3(0.020, 0.235, 0.255);
+  float waterTone = clamp(n.y * 0.65 + 0.35, 0.0, 1.0);
+  vec3 waterBody = mix(deep, shallow, waterTone);
+  waterBody *= mix(vec3(0.95, 0.98, 1.03), vec3(1.02, 1.03, 1.05), clamp((sunAlt + 0.2) * 0.8, 0.0, 1.0));
+
+  vec3 body = waterBody * (1.0 - F_env);
+  vec3 diffuse = body * (0.04 + 0.10 * wind) * (sunRadiance * (0.20 + 0.80 * NoLs) + moonRadiance * (0.10 + 0.90 * NoLm));
+
+  // Réflexion environnante (Fresnel)
+  vec3 env = reflection * F_env;
+
+  vec3 color = diffuse + env + spec;
+
+  // Écume (pentes + crêtes + bruit)
+  float slope = clamp(1.0 - n.y, 0.0, 1.0);
+  float h = v_pos.y / max(u_heightScale, 0.001);
+  float foamCrest = smoothstep(0.45, 1.05, h * 0.9 + 0.22);
+  float foamSlope = smoothstep(0.20, 0.88, slope);
+  float foamNoise = fbm(v_base * 0.08 + vec2(u_time * 0.05, u_time * 0.03) + wd * 1.8);
+  float foam = (foamSlope * 0.55 + foamCrest * 0.85) * (0.62 + 0.70 * wind);
+  foam += (foamNoise - 0.5) * (0.22 + 0.14 * wind);
+  foam = clamp(foam, 0.0, 1.0);
+  foam = smoothstep(0.18, 0.92, foam);
+
+  vec3 foamColDay = vec3(0.82, 0.93, 0.98);
+  vec3 foamColNight = vec3(0.58, 0.68, 0.86);
+  vec3 foamColor = mix(foamColNight, foamColDay, day);
+  color = mix(color, foamColor, foam);
+
+  float dist = length(u_cameraPos - v_pos);
+  float fog = smoothstep(60.0, 175.0, dist);
+  vec3 fogColor = skyColor(viewDir);
+  color = mix(color, fogColor, fog);
+
+  float exposure = mix(1.35, 0.95, day);
+  color = acesTonemap(color * exposure);
+
+  vec2 uv = gl_FragCoord.xy / max(u_resolution, vec2(1.0));
+  vec2 q = uv - 0.5;
+  float vignette = 1.0 - smoothstep(0.18, 0.52, dot(q, q));
+  color *= mix(0.92, 1.0, vignette);
+
+  color += (hash12(gl_FragCoord.xy) - 0.5) / 255.0;
+
+  color = pow(color, vec3(1.0 / 2.2));
+  gl_FragColor = vec4(color, 1.0);
+}
+        `.trim();
+
+        const SKY_VERT_SRC = `
+precision highp float;
+
+attribute vec2 a_pos;
+
+void main() {
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}
+        `.trim();
+
+        const SKY_FRAG_SRC = `
+precision highp float;
+
+uniform vec2 u_resolution;
+uniform vec3 u_camForward;
+uniform vec3 u_camRight;
+uniform vec3 u_camUp;
+uniform float u_tanHalfFov;
+uniform float u_aspect;
+uniform vec3 u_sunDir;
+uniform vec3 u_moonDir;
+uniform float u_time;
+
+const float PI = 3.141592653589793;
+const float TAU = 6.283185307179586;
+
+float hash12(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  float a = hash12(i);
+  float b = hash12(i + vec2(1.0, 0.0));
+  float c = hash12(i + vec2(0.0, 1.0));
+  float d = hash12(i + vec2(1.0, 1.0));
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+float fbm(vec2 p) {
+  float v = 0.0;
+  float a = 0.5;
+  mat2 m = mat2(1.6, 1.2, -1.2, 1.6);
+  for (int i = 0; i < 4; i++) {
+    v += a * noise(p);
+    p = m * p + 0.11;
+    a *= 0.55;
+  }
+  return v;
+}
+
+vec3 acesTonemap(vec3 x) {
+  const float a = 2.51;
+  const float b = 0.03;
+  const float c = 2.43;
+  const float d = 0.59;
+  const float e = 0.14;
+  return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+}
+
+vec3 skyColor(vec3 dir) {
+  dir = normalize(dir);
+
+  float sunAlt = u_sunDir.y;
+  float day = smoothstep(-0.08, 0.10, sunAlt);
+  float twilight = smoothstep(-0.20, 0.05, sunAlt) - smoothstep(0.05, 0.32, sunAlt);
+  twilight = clamp(twilight * 1.2, 0.0, 1.0);
+
+  float t = pow(clamp(dir.y * 0.5 + 0.5, 0.0, 1.0), 0.55);
+
+  vec3 nightZenith = vec3(0.003, 0.007, 0.018);
+  vec3 nightHorizon = vec3(0.012, 0.020, 0.035);
+
+  vec3 dayZenith = vec3(0.10, 0.29, 0.56);
+  vec3 dayHorizon = vec3(0.62, 0.78, 0.92);
+
+  vec3 sunsetZenith = vec3(0.16, 0.06, 0.26);
+  vec3 sunsetHorizon = vec3(1.10, 0.46, 0.16);
+
+  vec3 baseNight = mix(nightHorizon, nightZenith, t);
+  vec3 baseDay = mix(dayHorizon, dayZenith, t);
+  vec3 baseSunset = mix(sunsetHorizon, sunsetZenith, t);
+
+  vec3 col = mix(baseNight, baseDay, day);
+  col = mix(col, baseSunset, twilight);
+
+  // Soleil (disque + halo)
+  float sunVis = smoothstep(-0.02, 0.06, sunAlt);
+  vec3 sunCol = mix(vec3(1.25, 0.55, 0.18), vec3(1.0, 0.98, 0.92), clamp((sunAlt + 0.02) * 3.0, 0.0, 1.0));
+  float sunCos = max(dot(dir, normalize(u_sunDir)), 0.0);
+  float sunDisk = pow(sunCos, 1800.0);
+  float sunHalo = pow(sunCos, 80.0);
+  col += sunCol * (sunDisk * 8.0 + sunHalo * 0.35) * sunVis;
+
+  // Lune (disque + halo)
+  float moonVis = smoothstep(-0.06, 0.18, u_moonDir.y) * (1.0 - day);
+  vec3 moonCol = vec3(0.60, 0.72, 1.0);
+  float moonCos = max(dot(dir, normalize(u_moonDir)), 0.0);
+  float moonDisk = pow(moonCos, 1300.0);
+  float moonHalo = pow(moonCos, 45.0);
+  col += moonCol * (moonDisk * 1.8 + moonHalo * 0.08) * moonVis;
+
+  // Nuages fins (jour)
+  vec2 cuv = dir.xz / max(0.12, dir.y + 1.35);
+  cuv += vec2(u_time * 0.004, u_time * 0.002);
+  float clouds = fbm(cuv * 1.6);
+  float cloudMask = smoothstep(0.55, 0.80, clouds) * day * smoothstep(0.00, 0.65, dir.y);
+  col = mix(col, col + vec3(1.0) * 0.12, cloudMask * 0.85);
+
+  // Étoiles (nuit)
+  float starFade = clamp((0.35 - day) / 0.35, 0.0, 1.0) * smoothstep(-0.05, 0.25, dir.y);
+  vec2 suv = vec2(atan(dir.z, dir.x) / TAU, asin(clamp(dir.y, -1.0, 1.0)) / PI);
+  suv += vec2(u_time * 0.0007, 0.0);
+  float s1 = hash12(floor(suv * vec2(1500.0, 750.0)));
+  float s2 = hash12(floor(suv * vec2(900.0, 420.0) + 11.7));
+  float star1 = smoothstep(0.9972, 1.0, s1);
+  float star2 = smoothstep(0.9963, 1.0, s2) * 0.6;
+  col += vec3(1.2, 1.3, 1.45) * (star1 + star2) * (0.55 * starFade);
+
+  return max(col, vec3(0.0));
+}
+
+void main() {
+  vec2 uv = (gl_FragCoord.xy / max(u_resolution, vec2(1.0))) * 2.0 - 1.0;
+  vec3 dir = normalize(u_camForward + uv.x * (u_tanHalfFov * u_aspect) * u_camRight + uv.y * u_tanHalfFov * u_camUp);
+
+  float sunAlt = u_sunDir.y;
+  float day = smoothstep(-0.08, 0.10, sunAlt);
+  float exposure = mix(1.35, 0.95, day);
+
+  vec3 col = skyColor(dir);
+  col = acesTonemap(col * exposure);
+  col += (hash12(gl_FragCoord.xy) - 0.5) / 255.0;
+  col = pow(col, vec3(1.0 / 2.2));
+  gl_FragColor = vec4(col, 1.0);
+}
+        `.trim();
+
+        const BOAT_VERT_SRC = `
+precision highp float;
+
+attribute vec3 a_pos;
+attribute vec3 a_n;
+attribute vec3 a_color;
+
+uniform mat4 u_viewProj;
+uniform mat4 u_model;
+
+varying vec3 v_pos;
+varying vec3 v_n;
+varying vec3 v_color;
+
+void main() {
+  vec4 wpos = u_model * vec4(a_pos, 1.0);
+  v_pos = wpos.xyz;
+  v_n = mat3(u_model) * a_n;
+  v_color = a_color;
+  gl_Position = u_viewProj * wpos;
+}
+        `.trim();
+
+        const BOAT_FRAG_SRC = `
+precision highp float;
+
+varying vec3 v_pos;
+varying vec3 v_n;
+varying vec3 v_color;
+
+uniform vec3 u_cameraPos;
+uniform vec3 u_sunDir;
+uniform vec3 u_moonDir;
+uniform float u_time;
+
+const float PI = 3.141592653589793;
+const float TAU = 6.283185307179586;
+
+float hash12(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+vec3 acesTonemap(vec3 x) {
+  const float a = 2.51;
+  const float b = 0.03;
+  const float c = 2.43;
+  const float d = 0.59;
+  const float e = 0.14;
+  return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+}
+
+vec3 skyColor(vec3 dir) {
+  dir = normalize(dir);
+  float sunAlt = u_sunDir.y;
+  float day = smoothstep(-0.08, 0.10, sunAlt);
+  float twilight = smoothstep(-0.20, 0.05, sunAlt) - smoothstep(0.05, 0.32, sunAlt);
+  twilight = clamp(twilight * 1.2, 0.0, 1.0);
+
+  float t = pow(clamp(dir.y * 0.5 + 0.5, 0.0, 1.0), 0.55);
+
+  vec3 nightZenith = vec3(0.003, 0.007, 0.018);
+  vec3 nightHorizon = vec3(0.012, 0.020, 0.035);
+  vec3 dayZenith = vec3(0.10, 0.29, 0.56);
+  vec3 dayHorizon = vec3(0.62, 0.78, 0.92);
+  vec3 sunsetZenith = vec3(0.16, 0.06, 0.26);
+  vec3 sunsetHorizon = vec3(1.10, 0.46, 0.16);
+
+  vec3 baseNight = mix(nightHorizon, nightZenith, t);
+  vec3 baseDay = mix(dayHorizon, dayZenith, t);
+  vec3 baseSunset = mix(sunsetHorizon, sunsetZenith, t);
+
+  vec3 col = mix(baseNight, baseDay, day);
+  col = mix(col, baseSunset, twilight);
+
+  float sunVis = smoothstep(-0.02, 0.06, sunAlt);
+  vec3 sunCol = mix(vec3(1.25, 0.55, 0.18), vec3(1.0, 0.98, 0.92), clamp((sunAlt + 0.02) * 3.0, 0.0, 1.0));
+  float sunCos = max(dot(dir, normalize(u_sunDir)), 0.0);
+  col += sunCol * pow(sunCos, 800.0) * 2.2 * sunVis;
+
+  float moonVis = smoothstep(-0.06, 0.18, u_moonDir.y) * (1.0 - day);
+  vec3 moonCol = vec3(0.60, 0.72, 1.0);
+  float moonCos = max(dot(dir, normalize(u_moonDir)), 0.0);
+  col += moonCol * pow(moonCos, 650.0) * 0.6 * moonVis;
+
+  float starFade = clamp((0.35 - day) / 0.35, 0.0, 1.0) * smoothstep(-0.05, 0.25, dir.y);
+  vec2 suv = vec2(atan(dir.z, dir.x) / TAU, asin(clamp(dir.y, -1.0, 1.0)) / PI);
+  suv += vec2(u_time * 0.0007, 0.0);
+  float s1 = hash12(floor(suv * vec2(1500.0, 750.0)));
+  float star1 = smoothstep(0.9972, 1.0, s1);
+  col += vec3(1.2, 1.3, 1.45) * star1 * (0.30 * starFade);
+
+  return max(col, vec3(0.0));
+}
+
+void main() {
+  vec3 n = normalize(v_n);
+  vec3 v = normalize(u_cameraPos - v_pos);
+
+  float sunAlt = u_sunDir.y;
+  float day = smoothstep(-0.08, 0.10, sunAlt);
+  float exposure = mix(1.35, 0.95, day);
+
+  vec3 sunCol = mix(vec3(1.25, 0.55, 0.18), vec3(1.0, 0.98, 0.92), clamp((sunAlt + 0.02) * 3.0, 0.0, 1.0));
+  float sunVis = smoothstep(-0.02, 0.06, sunAlt);
+  vec3 sunRad = sunCol * (6.0 * sunVis);
+
+  float moonVis = smoothstep(-0.06, 0.18, u_moonDir.y) * (1.0 - day);
+  vec3 moonRad = vec3(0.55, 0.70, 1.0) * (1.2 * moonVis);
+
+  vec3 Ls = normalize(u_sunDir);
+  vec3 Lm = normalize(u_moonDir);
+
+  float ndls = max(dot(n, Ls), 0.0);
+  float ndlm = max(dot(n, Lm), 0.0);
+
+  vec3 ambient = skyColor(n) * (0.16 + 0.12 * day) + skyColor(vec3(0.0, 1.0, 0.0)) * 0.10;
+  vec3 diffuse = v_color * (sunRad * (0.12 + 0.88 * ndls) + moonRad * (0.10 + 0.90 * ndlm)) * 0.18;
+
+  vec3 hS = normalize(v + Ls);
+  float specS = pow(max(dot(n, hS), 0.0), 80.0) * (0.18 + 0.30 * sunVis);
+  vec3 hM = normalize(v + Lm);
+  float specM = pow(max(dot(n, hM), 0.0), 70.0) * (0.22 * moonVis);
+  vec3 spec = (sunRad * specS + moonRad * specM) * 0.35;
+
+  float rim = pow(1.0 - clamp(dot(n, v), 0.0, 1.0), 2.0);
+  vec3 rimCol = skyColor(reflect(-v, n)) * rim * 0.10;
+
+  vec3 col = ambient * v_color + diffuse + spec + rimCol;
+  col = acesTonemap(col * exposure);
+  col += (hash12(gl_FragCoord.xy) - 0.5) / 255.0;
+  col = pow(col, vec3(1.0 / 2.2));
+  gl_FragColor = vec4(col, 1.0);
+}
+        `.trim();
+
+        function compile(type, src) {
+          const shader = gl.createShader(type);
+          gl.shaderSource(shader, src);
+          gl.compileShader(shader);
+          if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            const info = gl.getShaderInfoLog(shader) || "Erreur de compilation shader.";
+            gl.deleteShader(shader);
+            throw new Error(info);
+          }
+          return shader;
+        }
+
+        function link(vs, fs) {
+          const program = gl.createProgram();
+          gl.attachShader(program, vs);
+          gl.attachShader(program, fs);
+          gl.linkProgram(program);
+          if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+            const info = gl.getProgramInfoLog(program) || "Erreur de link du programme.";
+            gl.deleteProgram(program);
+            throw new Error(info);
+          }
+          return program;
+        }
+
+        function createProgram(name, vertSrc, fragSrc) {
+          const vs = compile(gl.VERTEX_SHADER, vertSrc);
+          const fs = compile(gl.FRAGMENT_SHADER, fragSrc);
+          const prog = link(vs, fs);
+          gl.deleteShader(vs);
+          gl.deleteShader(fs);
+          return prog;
+        }
+
+        let waterProgram;
+        let skyProgram;
+        let boatProgram;
+        try {
+          waterProgram = createProgram("water", WATER_VERT_SRC, WATER_FRAG_SRC);
+          skyProgram = createProgram("sky", SKY_VERT_SRC, SKY_FRAG_SRC);
+          boatProgram = createProgram("boat", BOAT_VERT_SRC, BOAT_FRAG_SRC);
+        } catch (err) {
+          showStatus(String(err?.message ?? err));
+          return;
+        }
+
+        gl.enable(gl.DEPTH_TEST);
+        gl.depthFunc(gl.LEQUAL);
+
+        const waterLoc = {
+          a_pos: gl.getAttribLocation(waterProgram, "a_pos"),
+          u_viewProj: gl.getUniformLocation(waterProgram, "u_viewProj"),
+          u_time: gl.getUniformLocation(waterProgram, "u_time"),
+          u_amp: gl.getUniformLocation(waterProgram, "u_amp[0]"),
+          u_k: gl.getUniformLocation(waterProgram, "u_k[0]"),
+          u_w: gl.getUniformLocation(waterProgram, "u_w[0]"),
+          u_q: gl.getUniformLocation(waterProgram, "u_q[0]"),
+          u_dir: gl.getUniformLocation(waterProgram, "u_dir[0]"),
+          u_cameraPos: gl.getUniformLocation(waterProgram, "u_cameraPos"),
+          u_sunDir: gl.getUniformLocation(waterProgram, "u_sunDir"),
+          u_moonDir: gl.getUniformLocation(waterProgram, "u_moonDir"),
+          u_windDir: gl.getUniformLocation(waterProgram, "u_windDir"),
+          u_wind: gl.getUniformLocation(waterProgram, "u_wind"),
+          u_resolution: gl.getUniformLocation(waterProgram, "u_resolution"),
+          u_heightScale: gl.getUniformLocation(waterProgram, "u_heightScale"),
+        };
+
+        const skyLoc = {
+          a_pos: gl.getAttribLocation(skyProgram, "a_pos"),
+          u_resolution: gl.getUniformLocation(skyProgram, "u_resolution"),
+          u_camForward: gl.getUniformLocation(skyProgram, "u_camForward"),
+          u_camRight: gl.getUniformLocation(skyProgram, "u_camRight"),
+          u_camUp: gl.getUniformLocation(skyProgram, "u_camUp"),
+          u_tanHalfFov: gl.getUniformLocation(skyProgram, "u_tanHalfFov"),
+          u_aspect: gl.getUniformLocation(skyProgram, "u_aspect"),
+          u_sunDir: gl.getUniformLocation(skyProgram, "u_sunDir"),
+          u_moonDir: gl.getUniformLocation(skyProgram, "u_moonDir"),
+          u_time: gl.getUniformLocation(skyProgram, "u_time"),
+        };
+
+        const boatLoc = {
+          a_pos: gl.getAttribLocation(boatProgram, "a_pos"),
+          a_n: gl.getAttribLocation(boatProgram, "a_n"),
+          a_color: gl.getAttribLocation(boatProgram, "a_color"),
+          u_viewProj: gl.getUniformLocation(boatProgram, "u_viewProj"),
+          u_model: gl.getUniformLocation(boatProgram, "u_model"),
+          u_cameraPos: gl.getUniformLocation(boatProgram, "u_cameraPos"),
+          u_sunDir: gl.getUniformLocation(boatProgram, "u_sunDir"),
+          u_moonDir: gl.getUniformLocation(boatProgram, "u_moonDir"),
+          u_time: gl.getUniformLocation(boatProgram, "u_time"),
+        };
+
+        const N = 5;
+        const baseWaves = [
+          { wavelength: 22.0, amplitude: 0.55, angle: -0.15 },
+          { wavelength: 14.0, amplitude: 0.35, angle: 0.18 },
+          { wavelength: 9.0, amplitude: 0.22, angle: -0.32 },
+          { wavelength: 5.6, amplitude: 0.14, angle: 0.48 },
+          { wavelength: 3.3, amplitude: 0.08, angle: -0.65 },
+        ];
+
+        const state = {
+          wind: Number(windInput.value),
+          height: Number(heightInput.value),
+          tod: Number(todInput.value) / 24,
+          cycle: Number(cycleInput.value),
+        };
+
+        const wave = {
+          amp: new Float32Array(N),
+          k: new Float32Array(N),
+          w: new Float32Array(N),
+          q: new Float32Array(N),
+          dir: new Float32Array(N * 2),
+        };
+
+        function clamp(x, a, b) {
+          return Math.min(b, Math.max(a, x));
+        }
+
+        function formatTimeOfDay(tod01) {
+          const t = ((tod01 % 1) + 1) % 1;
+          const totalMinutes = Math.floor(t * 24 * 60 + 0.5);
+          const hh = Math.floor(totalMinutes / 60) % 24;
+          const mm = totalMinutes % 60;
+          return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+        }
+
+        function setLabelText() {
+          windVal.textContent = `${Math.round(state.wind)} m/s`;
+          heightVal.textContent = `${state.height.toFixed(2)}×`;
+          todVal.textContent = formatTimeOfDay(state.tod);
+          cycleVal.textContent = state.cycle <= 0.001 ? "Pause" : `×${state.cycle.toFixed(2)}`;
+        }
+
+        function rebuildWaves() {
+          const windNorm = clamp(state.wind / 40, 0, 1);
+          const spread = (1.05 - 0.8 * windNorm) * 0.6;
+          const baseAngle = 0.95;
+          const g = 9.81;
+          const steepnessBase = 0.28 + 0.52 * windNorm;
+
+          for (let i = 0; i < N; i++) {
+            const bw = baseWaves[i];
+            const lambda = bw.wavelength;
+            const k = (Math.PI * 2) / lambda;
+            const omega = Math.sqrt(g * k) * (0.60 + 1.05 * windNorm) * (prefersReducedMotion ? 0.55 : 1.0);
+
+            let amp = bw.amplitude * state.height;
+            if (i >= 3) amp *= 0.55 + 1.25 * windNorm;
+
+            const angle = baseAngle + bw.angle * spread;
+            const dx = Math.cos(angle);
+            const dz = Math.sin(angle);
+
+            const A = Math.max(amp, 0.00001);
+            let Q = steepnessBase / (k * A * N);
+            Q = clamp(Q, 0, 1.15);
+
+            wave.amp[i] = A;
+            wave.k[i] = k;
+            wave.w[i] = omega;
+            wave.q[i] = Q;
+            wave.dir[i * 2 + 0] = dx;
+            wave.dir[i * 2 + 1] = dz;
+          }
+
+          gl.useProgram(waterProgram);
+          gl.uniform1fv(waterLoc.u_amp, wave.amp);
+          gl.uniform1fv(waterLoc.u_k, wave.k);
+          gl.uniform1fv(waterLoc.u_w, wave.w);
+          gl.uniform1fv(waterLoc.u_q, wave.q);
+          gl.uniform2fv(waterLoc.u_dir, wave.dir);
+          gl.uniform1f(waterLoc.u_heightScale, state.height);
+          gl.uniform1f(waterLoc.u_wind, windNorm);
+          gl.uniform2f(waterLoc.u_windDir, wave.dir[0], wave.dir[1]);
+        }
+
+        windInput.addEventListener("input", () => {
+          state.wind = Number(windInput.value);
+          setLabelText();
+          rebuildWaves();
+        });
+        heightInput.addEventListener("input", () => {
+          state.height = Number(heightInput.value);
+          setLabelText();
+          rebuildWaves();
+        });
+        todInput.addEventListener("input", () => {
+          state.tod = Number(todInput.value) / 24;
+          setLabelText();
+        });
+        cycleInput.addEventListener("input", () => {
+          state.cycle = Number(cycleInput.value);
+          setLabelText();
+        });
+
+        let todDragging = false;
+        todInput.addEventListener("pointerdown", () => {
+          todDragging = true;
+        });
+        window.addEventListener("pointerup", () => {
+          todDragging = false;
+        });
+
+        setLabelText();
+        rebuildWaves();
+
+        function mat4Identity() {
+          return new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+        }
+
+        function mat4Multiply(out, a, b) {
+          const a00 = a[0],
+            a01 = a[1],
+            a02 = a[2],
+            a03 = a[3];
+          const a10 = a[4],
+            a11 = a[5],
+            a12 = a[6],
+            a13 = a[7];
+          const a20 = a[8],
+            a21 = a[9],
+            a22 = a[10],
+            a23 = a[11];
+          const a30 = a[12],
+            a31 = a[13],
+            a32 = a[14],
+            a33 = a[15];
+
+          const b00 = b[0],
+            b01 = b[1],
+            b02 = b[2],
+            b03 = b[3];
+          const b10 = b[4],
+            b11 = b[5],
+            b12 = b[6],
+            b13 = b[7];
+          const b20 = b[8],
+            b21 = b[9],
+            b22 = b[10],
+            b23 = b[11];
+          const b30 = b[12],
+            b31 = b[13],
+            b32 = b[14],
+            b33 = b[15];
+
+          out[0] = a00 * b00 + a10 * b01 + a20 * b02 + a30 * b03;
+          out[1] = a01 * b00 + a11 * b01 + a21 * b02 + a31 * b03;
+          out[2] = a02 * b00 + a12 * b01 + a22 * b02 + a32 * b03;
+          out[3] = a03 * b00 + a13 * b01 + a23 * b02 + a33 * b03;
+          out[4] = a00 * b10 + a10 * b11 + a20 * b12 + a30 * b13;
+          out[5] = a01 * b10 + a11 * b11 + a21 * b12 + a31 * b13;
+          out[6] = a02 * b10 + a12 * b11 + a22 * b12 + a32 * b13;
+          out[7] = a03 * b10 + a13 * b11 + a23 * b12 + a33 * b13;
+          out[8] = a00 * b20 + a10 * b21 + a20 * b22 + a30 * b23;
+          out[9] = a01 * b20 + a11 * b21 + a21 * b22 + a31 * b23;
+          out[10] = a02 * b20 + a12 * b21 + a22 * b22 + a32 * b23;
+          out[11] = a03 * b20 + a13 * b21 + a23 * b22 + a33 * b23;
+          out[12] = a00 * b30 + a10 * b31 + a20 * b32 + a30 * b33;
+          out[13] = a01 * b30 + a11 * b31 + a21 * b32 + a31 * b33;
+          out[14] = a02 * b30 + a12 * b31 + a22 * b32 + a32 * b33;
+          out[15] = a03 * b30 + a13 * b31 + a23 * b32 + a33 * b33;
+          return out;
+        }
+
+        function mat4Perspective(out, fovy, aspect, near, far) {
+          const f = 1.0 / Math.tan(fovy / 2);
+          out[0] = f / aspect;
+          out[1] = 0;
+          out[2] = 0;
+          out[3] = 0;
+          out[4] = 0;
+          out[5] = f;
+          out[6] = 0;
+          out[7] = 0;
+          out[8] = 0;
+          out[9] = 0;
+          out[10] = (far + near) / (near - far);
+          out[11] = -1;
+          out[12] = 0;
+          out[13] = 0;
+          out[14] = (2 * far * near) / (near - far);
+          out[15] = 0;
+          return out;
+        }
+
+        function vec3Normalize(out, x, y, z) {
+          const len = Math.hypot(x, y, z) || 1;
+          out[0] = x / len;
+          out[1] = y / len;
+          out[2] = z / len;
+          return out;
+        }
+
+        function vec3NormalizeInPlace(v) {
+          return vec3Normalize(v, v[0], v[1], v[2]);
+        }
+
+        function vec3Dot(a, b) {
+          return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+        }
+
+        function vec3Cross(out, a, b) {
+          const ax = a[0],
+            ay = a[1],
+            az = a[2];
+          const bx = b[0],
+            by = b[1],
+            bz = b[2];
+          out[0] = ay * bz - az * by;
+          out[1] = az * bx - ax * bz;
+          out[2] = ax * by - ay * bx;
+          return out;
+        }
+
+        function vec3Sub(out, a, b) {
+          out[0] = a[0] - b[0];
+          out[1] = a[1] - b[1];
+          out[2] = a[2] - b[2];
+          return out;
+        }
+
+        function vec3Add(out, a, b) {
+          out[0] = a[0] + b[0];
+          out[1] = a[1] + b[1];
+          out[2] = a[2] + b[2];
+          return out;
+        }
+
+        function vec3Scale(out, a, s) {
+          out[0] = a[0] * s;
+          out[1] = a[1] * s;
+          out[2] = a[2] * s;
+          return out;
+        }
+
+        function vec3Lerp(out, a, b, t) {
+          out[0] = a[0] + (b[0] - a[0]) * t;
+          out[1] = a[1] + (b[1] - a[1]) * t;
+          out[2] = a[2] + (b[2] - a[2]) * t;
+          return out;
+        }
+
+        function mat4LookAt(out, eye, center, up) {
+          const ex = eye[0],
+            ey = eye[1],
+            ez = eye[2];
+          const cx = center[0],
+            cy = center[1],
+            cz = center[2];
+
+          let zx = ex - cx,
+            zy = ey - cy,
+            zz = ez - cz;
+          const zLen = Math.hypot(zx, zy, zz) || 1;
+          zx /= zLen;
+          zy /= zLen;
+          zz /= zLen;
+
+          let xx = up[1] * zz - up[2] * zy;
+          let xy = up[2] * zx - up[0] * zz;
+          let xz = up[0] * zy - up[1] * zx;
+          const xLen = Math.hypot(xx, xy, xz) || 1;
+          xx /= xLen;
+          xy /= xLen;
+          xz /= xLen;
+
+          const yx = zy * xz - zz * xy;
+          const yy = zz * xx - zx * xz;
+          const yz = zx * xy - zy * xx;
+
+          out[0] = xx;
+          out[1] = yx;
+          out[2] = zx;
+          out[3] = 0;
+          out[4] = xy;
+          out[5] = yy;
+          out[6] = zy;
+          out[7] = 0;
+          out[8] = xz;
+          out[9] = yz;
+          out[10] = zz;
+          out[11] = 0;
+          out[12] = -(xx * ex + xy * ey + xz * ez);
+          out[13] = -(yx * ex + yy * ey + yz * ez);
+          out[14] = -(zx * ex + zy * ey + zz * ez);
+          out[15] = 1;
+          return out;
+        }
+
+        // Mesh: un grand plan en grille, calcul des vagues dans le shader.
+        const RES = 220;
+        const SIZE = 220;
+        const verts = new Float32Array((RES + 1) * (RES + 1) * 2);
+        let v = 0;
+        for (let z = 0; z <= RES; z++) {
+          const tz = z / RES;
+          const pz = (tz - 0.5) * SIZE;
+          for (let x = 0; x <= RES; x++) {
+            const tx = x / RES;
+            const px = (tx - 0.5) * SIZE;
+            verts[v++] = px;
+            verts[v++] = pz;
+          }
+        }
+
+        const indices = new Uint16Array(RES * RES * 6);
+        let idx = 0;
+        const row = RES + 1;
+        for (let z = 0; z < RES; z++) {
+          for (let x = 0; x < RES; x++) {
+            const i0 = z * row + x;
+            const i1 = i0 + 1;
+            const i2 = i0 + row;
+            const i3 = i2 + 1;
+            indices[idx++] = i0;
+            indices[idx++] = i2;
+            indices[idx++] = i1;
+            indices[idx++] = i1;
+            indices[idx++] = i2;
+            indices[idx++] = i3;
+          }
+        }
+
+        const waterVbo = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, waterVbo);
+        gl.bufferData(gl.ARRAY_BUFFER, verts, gl.STATIC_DRAW);
+
+        const waterEbo = gl.createBuffer();
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, waterEbo);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+
+        // Ciel: triangle plein écran.
+        const skyVbo = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, skyVbo);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+
+        // Bateau: géométrie low-poly (positions + normales + couleurs).
+        const boatVerts = [];
+        const HULL = [0.16, 0.22, 0.29];
+        const DECK = [0.30, 0.33, 0.35];
+        const CABIN = [0.38, 0.40, 0.42];
+        const GLASS = [0.18, 0.26, 0.33];
+
+        function addTri(dst, a, b, c, color, expected) {
+          let abx = b[0] - a[0];
+          let aby = b[1] - a[1];
+          let abz = b[2] - a[2];
+          let acx = c[0] - a[0];
+          let acy = c[1] - a[1];
+          let acz = c[2] - a[2];
+          let nx = aby * acz - abz * acy;
+          let ny = abz * acx - abx * acz;
+          let nz = abx * acy - aby * acx;
+          const nlen = Math.hypot(nx, ny, nz) || 1;
+          nx /= nlen;
+          ny /= nlen;
+          nz /= nlen;
+
+          if (expected) {
+            const dp = nx * expected[0] + ny * expected[1] + nz * expected[2];
+            if (dp < 0) {
+              // Inverser l'ordre pour orienter la normale.
+              return addTri(dst, a, c, b, color, null);
+            }
+          }
+
+          dst.push(
+            a[0],
+            a[1],
+            a[2],
+            nx,
+            ny,
+            nz,
+            color[0],
+            color[1],
+            color[2],
+            b[0],
+            b[1],
+            b[2],
+            nx,
+            ny,
+            nz,
+            color[0],
+            color[1],
+            color[2],
+            c[0],
+            c[1],
+            c[2],
+            nx,
+            ny,
+            nz,
+            color[0],
+            color[1],
+            color[2],
+          );
+        }
+
+        function addQuad(dst, a, b, c, d, color, expected) {
+          addTri(dst, a, b, c, color, expected);
+          addTri(dst, a, c, d, color, expected);
+        }
+
+        // Hull principal (5 points haut + 5 points bas).
+        const P0 = [-3.0, 0.0, -0.9];
+        const P1 = [-3.0, 0.0, 0.9];
+        const P2 = [1.8, 0.0, 0.55];
+        const P3 = [3.2, 0.02, 0.0];
+        const P4 = [1.8, 0.0, -0.55];
+
+        const B0 = [-2.6, -0.55, -0.45];
+        const B1 = [-2.6, -0.55, 0.45];
+        const B2 = [1.6, -0.62, 0.25];
+        const B3 = [2.9, -0.40, 0.0];
+        const B4 = [1.6, -0.62, -0.25];
+
+        // Pont (deck)
+        addTri(boatVerts, P0, P1, P2, DECK, [0, 1, 0]);
+        addTri(boatVerts, P0, P2, P3, DECK, [0, 1, 0]);
+        addTri(boatVerts, P0, P3, P4, DECK, [0, 1, 0]);
+
+        // Fond (keel)
+        addTri(boatVerts, B0, B4, B3, HULL, [0, -1, 0]);
+        addTri(boatVerts, B0, B3, B2, HULL, [0, -1, 0]);
+        addTri(boatVerts, B0, B2, B1, HULL, [0, -1, 0]);
+
+        // Poupe
+        addQuad(boatVerts, P0, P1, B1, B0, HULL, [-1, 0, 0]);
+        // Côté tribord (+z)
+        addQuad(boatVerts, P1, P2, B2, B1, HULL, [0, 0, 1]);
+        // Étrave tribord
+        addQuad(boatVerts, P2, P3, B3, B2, HULL, [1, 0, 0.6]);
+        // Étrave bâbord
+        addQuad(boatVerts, P3, P4, B4, B3, HULL, [1, 0, -0.6]);
+        // Côté bâbord (-z)
+        addQuad(boatVerts, P4, P0, B0, B4, HULL, [0, 0, -1]);
+
+        // Cabine simple + hublots (verre)
+        const C0 = [-2.1, 0.0, -0.38];
+        const C1 = [-2.1, 0.0, 0.38];
+        const C2 = [-0.9, 0.0, 0.32];
+        const C3 = [-0.9, 0.0, -0.32];
+        const C4 = [-2.05, 0.55, -0.30];
+        const C5 = [-2.05, 0.55, 0.30];
+        const C6 = [-1.0, 0.55, 0.24];
+        const C7 = [-1.0, 0.55, -0.24];
+
+        // Toit
+        addTri(boatVerts, C4, C5, C6, CABIN, [0, 1, 0]);
+        addTri(boatVerts, C4, C6, C7, CABIN, [0, 1, 0]);
+        // Faces
+        addQuad(boatVerts, C0, C1, C5, C4, CABIN, [-1, 0, 0]);
+        addQuad(boatVerts, C1, C2, C6, C5, CABIN, [0, 0, 1]);
+        addQuad(boatVerts, C2, C3, C7, C6, CABIN, [1, 0, 0]);
+        addQuad(boatVerts, C3, C0, C4, C7, CABIN, [0, 0, -1]);
+
+        // Fenêtres (panneaux fins)
+        const W0 = [-1.02, 0.20, -0.16];
+        const W1 = [-1.02, 0.20, 0.16];
+        const W2 = [-1.02, 0.44, 0.12];
+        const W3 = [-1.02, 0.44, -0.12];
+        addQuad(boatVerts, W0, W1, W2, W3, GLASS, [1, 0, 0]);
+
+        const boatData = new Float32Array(boatVerts);
+        const boatVbo = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, boatVbo);
+        gl.bufferData(gl.ARRAY_BUFFER, boatData, gl.STATIC_DRAW);
+        const boatVertCount = boatData.length / 9;
+
+        const view = mat4Identity();
+        const proj = mat4Identity();
+        const viewProj = mat4Identity();
+
+        const camera = {
+          yaw: 0.0,
+          pitch: 0.16,
+          yawTarget: 0.0,
+          pitchTarget: 0.16,
+          radius: 58,
+          height: 10.5,
+        };
+
+        const pointer = {
+          down: false,
+          x: 0,
+          y: 0,
+          yaw: 0,
+          pitch: 0,
+          lastInteraction: 0,
+        };
+
+        function onPointerDown(e) {
+          pointer.down = true;
+          pointer.x = e.clientX;
+          pointer.y = e.clientY;
+          pointer.yaw = camera.yawTarget;
+          pointer.pitch = camera.pitchTarget;
+          pointer.lastInteraction = performance.now();
+          canvas.setPointerCapture?.(e.pointerId);
+        }
+
+        function onPointerMove(e) {
+          if (!pointer.down) return;
+          const dx = e.clientX - pointer.x;
+          const dy = e.clientY - pointer.y;
+          const sensitivity = 0.0036;
+          camera.yawTarget = pointer.yaw - dx * sensitivity;
+          camera.pitchTarget = clamp(pointer.pitch - dy * sensitivity, -0.05, 0.42);
+          pointer.lastInteraction = performance.now();
+        }
+
+        function onPointerUp(e) {
+          pointer.down = false;
+          canvas.releasePointerCapture?.(e.pointerId);
+        }
+
+        canvas.addEventListener("pointerdown", onPointerDown);
+        window.addEventListener("pointermove", onPointerMove);
+        window.addEventListener("pointerup", onPointerUp);
+
+        function resize() {
+          const dprCap = 2.0;
+          const dpr = Math.min(window.devicePixelRatio || 1, dprCap);
+          const w = Math.max(1, Math.floor(canvas.clientWidth * dpr));
+          const h = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+          if (canvas.width !== w || canvas.height !== h) {
+            canvas.width = w;
+            canvas.height = h;
+            gl.viewport(0, 0, w, h);
+          }
+        }
+
+        window.addEventListener("resize", resize, { passive: true });
+        resize();
+
+        function lerp(a, b, t) {
+          return a + (b - a) * t;
+        }
+
+        const TAU = Math.PI * 2;
+        const FOVY = (56 * Math.PI) / 180;
+        const TAN_HALF_FOV = Math.tan(FOVY / 2);
+        const DAY_CYCLE_SECONDS = 240;
+
+        const sunDir = new Float32Array([0.2, 0.8, 0.1]);
+        const moonDir = new Float32Array([-0.2, -0.8, -0.1]);
+
+        function computeSunMoon(tod01, outSun, outMoon) {
+          const phase = (tod01 - 0.25) * TAU;
+          const sunY = Math.sin(phase);
+          const horiz = Math.sqrt(Math.max(0, 1 - sunY * sunY));
+          const az = 0.88 + tod01 * TAU * 0.03;
+          vec3Normalize(outSun, Math.cos(az) * horiz, sunY, Math.sin(az) * horiz);
+          outMoon[0] = -outSun[0];
+          outMoon[1] = -outSun[1];
+          outMoon[2] = -outSun[2];
+        }
+
+        function sampleSurface(baseX, baseZ, timeSec, out) {
+          let px = baseX;
+          let py = 0;
+          let pz = baseZ;
+          for (let i = 0; i < N; i++) {
+            const A = wave.amp[i];
+            const k = wave.k[i];
+            const w = wave.w[i];
+            const Q = wave.q[i];
+            const dx = wave.dir[i * 2 + 0];
+            const dz = wave.dir[i * 2 + 1];
+            const phase = k * (dx * baseX + dz * baseZ) + w * timeSec;
+            const c = Math.cos(phase);
+            const s = Math.sin(phase);
+            px += dx * (Q * A) * c;
+            pz += dz * (Q * A) * c;
+            py += A * s;
+          }
+          out[0] = px;
+          out[1] = py;
+          out[2] = pz;
+          return out;
+        }
+
+        const camForward = new Float32Array(3);
+        const camRight = new Float32Array(3);
+        const camUp = new Float32Array(3);
+        const eye = new Float32Array(3);
+        const lookAtCenter = new Float32Array([0, 0.3, 0]);
+        const worldUp = new Float32Array([0, 1, 0]);
+
+        const boat = {
+          baseX: 0.0,
+          baseZ: 0.0,
+          draft: 0.18,
+          scale: 1.35,
+          pos: new Float32Array([0.0, 0.0, 0.0]),
+          up: new Float32Array([0.0, 1.0, 0.0]),
+          forward: new Float32Array([1.0, 0.0, 0.0]),
+          right: new Float32Array([0.0, 0.0, 1.0]),
+          model: mat4Identity(),
+        };
+
+        const pC = new Float32Array(3);
+        const pF = new Float32Array(3);
+        const pB = new Float32Array(3);
+        const pR = new Float32Array(3);
+        const pL = new Float32Array(3);
+        const vF = new Float32Array(3);
+        const vR = new Float32Array(3);
+        const targetUp = new Float32Array(3);
+        const headingWorld = new Float32Array(3);
+        const targetForward = new Float32Array(3);
+        const targetRight = new Float32Array(3);
+        const tmp = new Float32Array(3);
+        const targetPos = new Float32Array(3);
+
+        let lastMs = 0;
+
+        function render(nowMs) {
+          if (!lastMs) lastMs = nowMs;
+          const dt = Math.min(0.05, Math.max(0.0, (nowMs - lastMs) * 0.001));
+          lastMs = nowMs;
+
+          const t = nowMs * 0.001;
+          resize();
+
+          const idleSeconds = (nowMs - pointer.lastInteraction) * 0.001;
+          const auto = !prefersReducedMotion && idleSeconds > 0.6;
+          if (auto) camera.yawTarget = 0.15 * Math.sin(t * 0.18) - 0.12;
+
+          camera.yaw = lerp(camera.yaw, camera.yawTarget, 0.06);
+          camera.pitch = lerp(camera.pitch, camera.pitchTarget, 0.06);
+
+          const cy = Math.cos(camera.yaw);
+          const sy = Math.sin(camera.yaw);
+          const cp = Math.cos(camera.pitch);
+          const sp = Math.sin(camera.pitch);
+
+          eye[0] = camera.radius * sy * cp;
+          eye[1] = camera.height + camera.radius * sp;
+          eye[2] = camera.radius * cy * cp;
+
+          mat4LookAt(view, eye, lookAtCenter, worldUp);
+          const aspect = canvas.width / canvas.height;
+          mat4Perspective(proj, FOVY, aspect, 0.5, 260.0);
+          mat4Multiply(viewProj, proj, view);
+
+          // Cycle jour/nuit (pause si l'utilisateur manipule le slider).
+          if (!prefersReducedMotion && state.cycle > 0.001 && !todDragging) {
+            state.tod = (state.tod + (dt * state.cycle) / DAY_CYCLE_SECONDS) % 1;
+            todInput.value = (state.tod * 24).toFixed(2);
+            todVal.textContent = formatTimeOfDay(state.tod);
+          }
+          computeSunMoon(state.tod, sunDir, moonDir);
+
+          // Base caméra pour le shader du ciel.
+          vec3Sub(camForward, lookAtCenter, eye);
+          vec3NormalizeInPlace(camForward);
+          vec3Cross(camRight, camForward, worldUp);
+          vec3NormalizeInPlace(camRight);
+          vec3Cross(camUp, camRight, camForward);
+          vec3NormalizeInPlace(camUp);
+
+          gl.clearColor(0, 0, 0, 1);
+          gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+          // --- Sky pass ---
+          gl.disable(gl.DEPTH_TEST);
+          gl.depthMask(false);
+          gl.useProgram(skyProgram);
+          gl.bindBuffer(gl.ARRAY_BUFFER, skyVbo);
+          gl.enableVertexAttribArray(skyLoc.a_pos);
+          gl.vertexAttribPointer(skyLoc.a_pos, 2, gl.FLOAT, false, 0, 0);
+          gl.uniform2f(skyLoc.u_resolution, canvas.width, canvas.height);
+          gl.uniform3f(skyLoc.u_camForward, camForward[0], camForward[1], camForward[2]);
+          gl.uniform3f(skyLoc.u_camRight, camRight[0], camRight[1], camRight[2]);
+          gl.uniform3f(skyLoc.u_camUp, camUp[0], camUp[1], camUp[2]);
+          gl.uniform1f(skyLoc.u_tanHalfFov, TAN_HALF_FOV);
+          gl.uniform1f(skyLoc.u_aspect, aspect);
+          gl.uniform3f(skyLoc.u_sunDir, sunDir[0], sunDir[1], sunDir[2]);
+          gl.uniform3f(skyLoc.u_moonDir, moonDir[0], moonDir[1], moonDir[2]);
+          gl.uniform1f(skyLoc.u_time, t);
+          gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+          // --- Water pass ---
+          gl.enable(gl.DEPTH_TEST);
+          gl.depthMask(true);
+          gl.useProgram(waterProgram);
+          gl.bindBuffer(gl.ARRAY_BUFFER, waterVbo);
+          gl.enableVertexAttribArray(waterLoc.a_pos);
+          gl.vertexAttribPointer(waterLoc.a_pos, 2, gl.FLOAT, false, 0, 0);
+          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, waterEbo);
+          gl.uniformMatrix4fv(waterLoc.u_viewProj, false, viewProj);
+          gl.uniform1f(waterLoc.u_time, t);
+          gl.uniform3f(waterLoc.u_cameraPos, eye[0], eye[1], eye[2]);
+          gl.uniform3f(waterLoc.u_sunDir, sunDir[0], sunDir[1], sunDir[2]);
+          gl.uniform3f(waterLoc.u_moonDir, moonDir[0], moonDir[1], moonDir[2]);
+          if (waterLoc.u_resolution) gl.uniform2f(waterLoc.u_resolution, canvas.width, canvas.height);
+          gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
+
+          // --- Boat transform ---
+          const wdx0 = wave.dir[0];
+          const wdz0 = wave.dir[1];
+          const wLen = Math.hypot(wdx0, wdz0) || 1;
+          const hx = wdx0 / wLen;
+          const hz = wdz0 / wLen;
+          const rx = -hz;
+          const rz = hx;
+          const fOff = 1.55 * boat.scale;
+          const rOff = 0.65 * boat.scale;
+
+          sampleSurface(boat.baseX, boat.baseZ, t, pC);
+          sampleSurface(boat.baseX + hx * fOff, boat.baseZ + hz * fOff, t, pF);
+          sampleSurface(boat.baseX - hx * fOff, boat.baseZ - hz * fOff, t, pB);
+          sampleSurface(boat.baseX + rx * rOff, boat.baseZ + rz * rOff, t, pR);
+          sampleSurface(boat.baseX - rx * rOff, boat.baseZ - rz * rOff, t, pL);
+
+          vec3Sub(vF, pF, pB);
+          vec3Sub(vR, pR, pL);
+          vec3Cross(targetUp, vR, vF);
+          vec3NormalizeInPlace(targetUp);
+          if (targetUp[1] < 0) {
+            targetUp[0] *= -1;
+            targetUp[1] *= -1;
+            targetUp[2] *= -1;
+          }
+
+          headingWorld[0] = hx;
+          headingWorld[1] = 0;
+          headingWorld[2] = hz;
+          const dp = vec3Dot(targetUp, headingWorld);
+          tmp[0] = headingWorld[0] - targetUp[0] * dp;
+          tmp[1] = headingWorld[1] - targetUp[1] * dp;
+          tmp[2] = headingWorld[2] - targetUp[2] * dp;
+          vec3NormalizeInPlace(tmp);
+          targetForward[0] = tmp[0];
+          targetForward[1] = tmp[1];
+          targetForward[2] = tmp[2];
+          vec3Cross(targetRight, targetForward, targetUp);
+          vec3NormalizeInPlace(targetRight);
+          vec3Cross(targetForward, targetUp, targetRight);
+          vec3NormalizeInPlace(targetForward);
+
+          targetPos[0] = pC[0] + targetUp[0] * boat.draft;
+          targetPos[1] = pC[1] + targetUp[1] * boat.draft;
+          targetPos[2] = pC[2] + targetUp[2] * boat.draft;
+
+          vec3Lerp(boat.pos, boat.pos, targetPos, 0.06);
+          vec3Lerp(boat.up, boat.up, targetUp, 0.10);
+          vec3NormalizeInPlace(boat.up);
+          vec3Lerp(boat.forward, boat.forward, targetForward, 0.10);
+          vec3NormalizeInPlace(boat.forward);
+          vec3Cross(boat.right, boat.forward, boat.up);
+          vec3NormalizeInPlace(boat.right);
+          vec3Cross(boat.forward, boat.up, boat.right);
+          vec3NormalizeInPlace(boat.forward);
+
+          const s = boat.scale;
+          const m = boat.model;
+          m[0] = boat.right[0] * s;
+          m[1] = boat.right[1] * s;
+          m[2] = boat.right[2] * s;
+          m[3] = 0;
+          m[4] = boat.up[0] * s;
+          m[5] = boat.up[1] * s;
+          m[6] = boat.up[2] * s;
+          m[7] = 0;
+          m[8] = boat.forward[0] * s;
+          m[9] = boat.forward[1] * s;
+          m[10] = boat.forward[2] * s;
+          m[11] = 0;
+          m[12] = boat.pos[0];
+          m[13] = boat.pos[1];
+          m[14] = boat.pos[2];
+          m[15] = 1;
+
+          // --- Boat pass ---
+          gl.enable(gl.CULL_FACE);
+          gl.cullFace(gl.BACK);
+          gl.useProgram(boatProgram);
+          gl.bindBuffer(gl.ARRAY_BUFFER, boatVbo);
+          const stride = 9 * 4;
+          gl.enableVertexAttribArray(boatLoc.a_pos);
+          gl.vertexAttribPointer(boatLoc.a_pos, 3, gl.FLOAT, false, stride, 0);
+          gl.enableVertexAttribArray(boatLoc.a_n);
+          gl.vertexAttribPointer(boatLoc.a_n, 3, gl.FLOAT, false, stride, 3 * 4);
+          gl.enableVertexAttribArray(boatLoc.a_color);
+          gl.vertexAttribPointer(boatLoc.a_color, 3, gl.FLOAT, false, stride, 6 * 4);
+          gl.uniformMatrix4fv(boatLoc.u_viewProj, false, viewProj);
+          gl.uniformMatrix4fv(boatLoc.u_model, false, boat.model);
+          gl.uniform3f(boatLoc.u_cameraPos, eye[0], eye[1], eye[2]);
+          gl.uniform3f(boatLoc.u_sunDir, sunDir[0], sunDir[1], sunDir[2]);
+          gl.uniform3f(boatLoc.u_moonDir, moonDir[0], moonDir[1], moonDir[2]);
+          gl.uniform1f(boatLoc.u_time, t);
+          gl.drawArrays(gl.TRIANGLES, 0, boatVertCount);
+          gl.disable(gl.CULL_FACE);
+
+          requestAnimationFrame(render);
+        }
+
+        requestAnimationFrame(render);
+      })();
+    </script>
+  </body>
+</html>
