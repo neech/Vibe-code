@@ -1,0 +1,25 @@
+export function getDom() {
+  return {
+    canvas: document.getElementById("c"),
+    hud: document.getElementById("hud"),
+    hint: document.getElementById("hint"),
+    quality: document.getElementById("quality"),
+    season: document.getElementById("season"),
+    biome: document.getElementById("biome"),
+    weather: document.getElementById("weather"),
+    cameraMode: document.getElementById("cameraMode"),
+    precip: document.getElementById("precip"),
+    wind: document.getElementById("wind"),
+    timeSpeed: document.getElementById("timeSpeed"),
+    time: document.getElementById("time"),
+    tiltFocus: document.getElementById("tiltFocus"),
+    presetGolden: document.getElementById("presetGolden"),
+    presetStorm: document.getElementById("presetStorm"),
+    newWorld: document.getElementById("newWorld"),
+    toggleHud: document.getElementById("toggleHud"),
+    pause: document.getElementById("pause"),
+    reset: document.getElementById("reset"),
+    readout: document.getElementById("readout"),
+    fps: document.getElementById("fps"),
+  };
+}

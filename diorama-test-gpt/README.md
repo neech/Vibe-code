@@ -11,7 +11,7 @@ Small Three.js `r182` diorama with:
 
 ## Run
 
-From `/Users/allan/Downloads/test code`:
+From the repo root:
 
 ```bash
 cd diorama-test-gpt
@@ -22,8 +22,17 @@ Open `http://localhost:8000/`.
 
 Note: don’t open `index.html` via `file://` (module scripts/import maps are blocked by CORS in Chromium-based browsers).
 
+## Structure
+
+- `main.js`: entrypoint (imports app)
+- `src/app/app.js`: app bootstrap/orchestrator
+- `src/render/postprocessing.js`: postprocessing pipeline
+- `src/world/worldgen.js`: world generation helpers/data
+- `src/`: shared modules (UI/settings, utilities, engine setup)
+
 ## Controls
 
 - Mouse/touch: orbit, zoom, pan (right-drag)
 - `R`: reset camera
-- UI panel: quality preset, season, biome, camera mode (tilt-shift), weather, precipitation, wind, time controls, pause/reset
+- `H`: hide/show menu
+- UI panel: quality preset, season, biome, camera mode (tilt-shift/first person), weather, precipitation, wind, time controls, new world, pause/reset

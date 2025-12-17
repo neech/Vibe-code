@@ -64,6 +64,37 @@
         margin-bottom: 10px;
       }
 
+      #hud.collapsed {
+        width: fit-content;
+        padding: 10px 12px;
+      }
+
+      #hud.collapsed .grid,
+      #hud.collapsed #readout,
+      #hud.collapsed #hint {
+        display: none;
+      }
+
+      #hud .title .right {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 10px;
+      }
+
+      #hud .title button {
+        width: auto;
+        padding: 6px 10px;
+        border-radius: 10px;
+        border: 1px solid var(--stroke);
+        background: rgba(5, 7, 13, 0.55);
+        color: var(--text);
+        cursor: pointer;
+      }
+
+      #hud .title button:hover {
+        border-color: rgba(255, 255, 255, 0.22);
+      }
+
       #hud .title small {
         font-size: 12px;
         color: var(--muted);
@@ -159,7 +190,10 @@
     <div id="hud" role="region" aria-label="Diorama controls">
       <div class="title">
         <div>Diorama Test</div>
-        <small>Three.js r182</small>
+        <div class="right">
+          <small>Three.js r182</small>
+          <button id="toggleHud" type="button" aria-pressed="false">Hide</button>
+        </div>
       </div>
 
       <div class="grid">
@@ -213,6 +247,7 @@
           <select id="cameraMode">
             <option value="normal" selected>Normal</option>
             <option value="tiltshift">Tilt-shift</option>
+            <option value="firstperson">First person</option>
           </select>
         </label>
 
@@ -246,6 +281,7 @@
             <button id="presetGolden" type="button">Golden Hour</button>
             <button id="presetStorm" type="button">Storm</button>
           </div>
+          <button id="newWorld" type="button">New World</button>
           <button id="pause" type="button">Pause</button>
           <button id="reset" type="button">Reset</button>
         </div>
@@ -253,7 +289,9 @@
 
       <div id="readout"></div>
       <div id="hint">
-        Drag to orbit, scroll to zoom, right-drag to pan. Press <kbd>R</kbd> to reset camera.
+        Drag to orbit, scroll to zoom, right-drag to pan. Press <kbd>R</kbd> to reset camera. Press <kbd>H</kbd> to hide/show menu.
+        <br />
+        First person: select it, click the scene to capture the mouse, then use <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> (hold <kbd>Shift</kbd> to sprint, <kbd>Esc</kbd> to release).
       </div>
     </div>
 
